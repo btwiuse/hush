@@ -42,6 +42,8 @@ type terminal struct {
 	// command state
 	lastExitCode int
 	history      *history
+	// ui state
+	completionsVisible bool
 
 	out, outErr io.Writer
 }
@@ -157,7 +159,9 @@ func (t *terminal) ReadEvalPrint(reader io.RuneReader) error {
 		t.Clear()
 		t.Print(prompt(t))
 	case controlEnter:
-		t.eraseBelowPrompt()
+		if t.completionsVisible {
+			t.eraseBelowPrompt()
+		}
 		t.Print("\r\n")
 		command := string(t.line)
 		t.line = nil
@@ -217,6 +221,7 @@ func (t *terminal) ReadEvalPrint(reader io.RuneReader) error {
 				t.Print(completion.Completion, "\t")
 			}
 			t.RestoreCursor()
+			t.completionsVisible = true
 		}
 	default:
 		prefix, suffix := splitRunes(t.line, t.cursor)
@@ -434,6 +439,7 @@ func (t *terminal) moveCursorToEnd() {
 }
 
 func (t *terminal) eraseBelowPrompt() {
+	t.completionsVisible = false
 	t.SaveCursor()
 	t.Print("\n\r")
 	t.Printf("%c%c%d%c", escapeCSI, escapeLBracket, 0, 'J') // erase from cursor to end of viewport
