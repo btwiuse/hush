@@ -196,6 +196,12 @@ func runCmd(cmd *exec.Cmd, options cmdOptions) error {
 		if options.Background {
 			return cmd.Start()
 		}
+		// Restore cooked mode before running so the child process gets a
+		// normal terminal (echo, Ctrl-C / Ctrl-D signal handling, etc.).
+		if !options.Pipe {
+			suspendRawMode()
+			defer resumeRawMode()
+		}
 		return cmd.Run()
 	}
 
