@@ -285,7 +285,7 @@ func which(term console, args ...string) error {
 }
 
 func clear(term console, args ...string) error {
-	term.(*terminal).Clear()
+	clearWriter(term.Stdout())
 	return nil
 }
 
