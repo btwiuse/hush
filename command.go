@@ -230,7 +230,12 @@ func runCmd(cmd *exec.Cmd, options cmdOptions) error {
 		if options.Background {
 			return cmd.Start()
 		}
-		return cmd.Run()
+		// Pipe commands (right-hand side) read from a pipe, not the terminal;
+		// skip cooked-mode switching to avoid concurrent access to globalRawCancel.
+		if options.Pipe {
+			return cmd.Run()
+		}
+		return withCookedMode(cmd.Run)
 	}
 
 	var oldKV, unsetKV []string
