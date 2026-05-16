@@ -285,7 +285,8 @@ func which(term console, args ...string) error {
 }
 
 func clear(term console, args ...string) error {
-	term.(*terminal).Clear()
+	fmt.Fprint(term.Stdout(), string(escapeCSI)+"[H") // set cursor to top left
+	fmt.Fprint(term.Stdout(), string(escapeCSI)+"[J") // clear viewport
 	return nil
 }
 
