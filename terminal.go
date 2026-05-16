@@ -385,10 +385,14 @@ func (t *terminal) RestoreCursor() {
 	t.Printf("%c%c%s", escapeCSI, escapeLBracket, "u")
 }
 
-func (t *terminal) Clear() {
+func clearWriter(w io.Writer) {
 	// TODO this wipes out some scrollback, need to figure out how to preserve it
-	t.Print(string(escapeCSI) + "[H") // set cursor to top left
-	t.Print(string(escapeCSI) + "[J") // clear viewport
+	fmt.Fprint(w, string(escapeCSI)+"[H") // set cursor to top left
+	fmt.Fprint(w, string(escapeCSI)+"[J") // clear viewport
+}
+
+func (t *terminal) Clear() {
+	clearWriter(t.out)
 }
 
 func (t *terminal) deleteWord() {
