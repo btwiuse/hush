@@ -163,11 +163,45 @@ func runCommand(term console, line string, stmt *syntax.Stmt, isPipe bool) error
 		fmt.Fprintf(term.Stdout(), "\n%s\t %v total\n", formatStmt(line, node.Stmt), duration)
 		return err
 
-	case *syntax.IfClause, *syntax.WhileClause, *syntax.ForClause, *syntax.CaseClause, *syntax.Block, *syntax.Subshell, *syntax.FuncDecl, *syntax.ArithmCmd, *syntax.TestClause, *syntax.DeclClause, *syntax.LetClause, *syntax.CoprocClause:
+	case *syntax.DeclClause:
+		return runDeclClause(node)
+
+	case *syntax.IfClause, *syntax.WhileClause, *syntax.ForClause, *syntax.CaseClause, *syntax.Block, *syntax.Subshell, *syntax.FuncDecl, *syntax.ArithmCmd, *syntax.TestClause, *syntax.LetClause, *syntax.CoprocClause:
 		return errors.Errorf("Unimplemented statement type: %T %v", stmt.Cmd, stmt.Cmd)
 	default:
 		return errors.Errorf("Unknown statement type: %T %v", stmt.Cmd, stmt.Cmd)
 	}
+}
+
+func runDeclClause(node *syntax.DeclClause) error {
+	if node.Variant.Value != "export" {
+		return errors.Errorf("Unimplemented declare variant: %s", node.Variant.Value)
+	}
+	for _, assign := range node.Args {
+		if assign.Name == nil {
+			return errors.New("export: dynamic variable names not supported")
+		}
+		name := assign.Name.Value
+		if assign.Naked {
+			// export VAR — re-export an already-set variable (no-op if already in env)
+			continue
+		}
+		if assign.Value == nil {
+			// export VAR= — set to empty string
+			if err := os.Setenv(name, ""); err != nil {
+				return err
+			}
+			continue
+		}
+		value, err := evalWord(assign.Value.Parts)
+		if err != nil {
+			return err
+		}
+		if err := os.Setenv(name, value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func formatStmt(source string, s *syntax.Stmt) string {
