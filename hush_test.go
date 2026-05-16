@@ -16,7 +16,9 @@ func TestExport(t *testing.T) {
 		stderr: &bytes.Buffer{},
 	}
 
-	os.Unsetenv("HUSH_TEST_VAR")
+	if err := os.Unsetenv("HUSH_TEST_VAR"); err != nil {
+		t.Fatalf("unexpected error unsetting env: %v", err)
+	}
 	if err := runLine(term, "export HUSH_TEST_VAR=hello"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -33,7 +35,9 @@ func TestExport(t *testing.T) {
 	}
 
 	// export VAR (naked) is a no-op for already-set variables
-	os.Setenv("HUSH_TEST_VAR", "world")
+	if err := os.Setenv("HUSH_TEST_VAR", "world"); err != nil {
+		t.Fatalf("unexpected error setting env: %v", err)
+	}
 	if err := runLine(term, "export HUSH_TEST_VAR"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -188,14 +188,18 @@ func runDeclClause(node *syntax.DeclClause) error {
 		}
 		if assign.Value == nil {
 			// export VAR= — set to empty string
-			os.Setenv(name, "")
+			if err := os.Setenv(name, ""); err != nil {
+				return err
+			}
 			continue
 		}
 		value, err := evalWord(assign.Value.Parts)
 		if err != nil {
 			return err
 		}
-		os.Setenv(name, value)
+		if err := os.Setenv(name, value); err != nil {
+			return err
+		}
 	}
 	return nil
 }
