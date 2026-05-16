@@ -6,12 +6,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	gotty "github.com/mattn/go-tty"
 )
 
-var globalTTY *gotty.TTY
-var globalRawCancel func() error
+var (
+	globalTTY        *gotty.TTY
+	globalRawCancel  func() error
+	globalTerminalMu sync.Mutex
+)
 
 func ttySetup() (context.CancelFunc, error) {
 	tty, err := gotty.Open()
@@ -22,10 +26,14 @@ func ttySetup() (context.CancelFunc, error) {
 	if err != nil {
 		return nil, err
 	}
+	globalTerminalMu.Lock()
 	globalTTY = tty
 	globalRawCancel = rawCancel
+	globalTerminalMu.Unlock()
 	os.Stdin = tty.Input()
 	return func() {
+		globalTerminalMu.Lock()
+		defer globalTerminalMu.Unlock()
 		if globalRawCancel != nil {
 			if err := globalRawCancel(); err != nil {
 				fmt.Fprintln(os.Stderr, "Failed to restore tty:", err)
@@ -41,19 +49,30 @@ func ttySetup() (context.CancelFunc, error) {
 // then re-enters raw mode. This allows external commands to receive signals
 // (e.g. Ctrl+C → SIGINT) and proper line-editing from the terminal driver.
 func withCookedMode(fn func() error) error {
-	if globalTTY == nil || globalRawCancel == nil {
+	globalTerminalMu.Lock()
+	tty := globalTTY
+	rawCancel := globalRawCancel
+	globalTerminalMu.Unlock()
+
+	if tty == nil || rawCancel == nil {
 		return fn()
 	}
-	if err := globalRawCancel(); err != nil {
-		return err
+	if err := rawCancel(); err != nil {
+		return fmt.Errorf("restoring cooked terminal mode: %w", err)
 	}
+	globalTerminalMu.Lock()
 	globalRawCancel = nil
+	globalTerminalMu.Unlock()
+
 	err := fn()
-	rawCancel, rerr := globalTTY.Raw()
+
+	newCancel, rerr := tty.Raw()
 	if rerr != nil {
 		fmt.Fprintln(os.Stderr, "Failed to re-enter raw mode:", rerr)
 	} else {
-		globalRawCancel = rawCancel
+		globalTerminalMu.Lock()
+		globalRawCancel = newCancel
+		globalTerminalMu.Unlock()
 	}
 	return err
 }
