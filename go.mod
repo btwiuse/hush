@@ -1,4 +1,4 @@
-module github.com/hack-pad/hush
+module github.com/btwiuse/hush
 
 go 1.25.0
 

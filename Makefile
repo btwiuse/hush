@@ -3,7 +3,7 @@ PATH := ${PWD}/cache/go/bin:${PWD}/cache/go/misc/wasm:${PATH}
 export
 LINT_VERSION = 1.41.1
 SHELL := /usr/bin/env bash
-GO_VERSION = 1.16.6
+GO_VERSION = 1.26
 
 .PHONY: all
 all: lint test
@@ -45,8 +45,8 @@ cache/go${GO_VERSION}: cache
 		git clone \
 			--depth 1 \
 			--single-branch \
-			--branch hackpad-go${GO_VERSION} \
-			https://github.com/hack-pad/go.git \
+			--branch hackpad/release-branch.go${GO_VERSION} \
+			https://github.com/btwiuse/go.git \
 			"$$TMP"; \
 		pushd "$$TMP/src"; \
 		./make.bash; \
