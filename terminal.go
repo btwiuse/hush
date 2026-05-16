@@ -196,7 +196,6 @@ func (t *terminal) ReadEvalPrint(reader io.RuneReader) error {
 		t.Print(prompt(t))
 	case '\t':
 		completions := getCompletions(string(t.line), t.cursor)
-		t.eraseBelowPrompt()
 		if len(completions) == 1 {
 			completion := completions[0]
 			t.ClearRightN(len(t.line) - completion.End)
@@ -211,12 +210,13 @@ func (t *terminal) ReadEvalPrint(reader io.RuneReader) error {
 			t.line = []rune(line)
 			t.cursor = len(t.line) - len(suffix)
 		} else if len(completions) > 1 {
-			t.SaveCursor()
-			t.Print("\n")
+			t.Print("\r\n")
 			for _, completion := range completions {
 				t.Print(completion.Completion, "\t")
 			}
-			t.RestoreCursor()
+			t.CursorUpN(1)                                    // back to prompt line
+			t.Printf("\r%s%s", prompt(t), string(t.line))     // redraw prompt + line
+			t.CursorLeftN(len(t.line) - t.cursor)              // restore cursor position
 		}
 	default:
 		prefix, suffix := splitRunes(t.line, t.cursor)
@@ -431,11 +431,4 @@ func (t *terminal) moveCursorToStart() {
 func (t *terminal) moveCursorToEnd() {
 	t.CursorRightN(len(t.line) - t.cursor)
 	t.cursor = len(t.line)
-}
-
-func (t *terminal) eraseBelowPrompt() {
-	t.SaveCursor()
-	t.Print("\n\r")
-	t.Printf("%c%c%d%c", escapeCSI, escapeLBracket, 0, 'J') // erase from cursor to end of viewport
-	t.RestoreCursor()
 }
