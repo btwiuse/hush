@@ -157,8 +157,8 @@ func (t *terminal) ReadEvalPrint(reader io.RuneReader) error {
 		t.Clear()
 		t.Print(prompt(t))
 	case controlEnter:
-		t.eraseBelowPrompt()
 		t.Print("\r\n")
+		t.Printf("%c%c%d%c", escapeCSI, escapeLBracket, 0, 'J') // clear stale output below prompt
 		command := string(t.line)
 		t.line = nil
 		t.cursor = 0
