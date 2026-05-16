@@ -32,7 +32,9 @@ func ttySetup() (context.CancelFunc, error) {
 	}
 	os.Stdin = ttyFile
 	return func() {
-		ttyFile.Close()
+		if err := ttyFile.Close(); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to close tty file:", err)
+		}
 		err := cancel()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Failed to restore tty:", err)
