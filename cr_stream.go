@@ -13,18 +13,17 @@ func newCarriageReturnWriter(dest io.Writer) (io.Writer, error) {
 }
 
 func (c *carriageReturnWriter) Write(buf []byte) (n int, err error) {
+	out := make([]byte, 0, len(buf))
 	for _, b := range buf {
-		_, err = c.Writer.Write([]byte{b})
-		if err != nil {
-			return
-		}
 		if b == '\n' {
-			_, err = c.Writer.Write([]byte{'\r'})
-			if err != nil {
-				return
-			}
+			out = append(out, '\n', '\r')
+		} else {
+			out = append(out, b)
 		}
-		n++
 	}
-	return
+	_, err = c.Writer.Write(out)
+	if err != nil {
+		return 0, err
+	}
+	return len(buf), nil
 }

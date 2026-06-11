@@ -215,8 +215,9 @@ func formatStmt(source string, s *syntax.Stmt) string {
 }
 
 type cmdOptions struct {
-	Background bool
-	Pipe       bool
+	Background  bool
+	Pipe        bool
+	EnvOverride []string
 }
 
 func runCmd(cmd *exec.Cmd, options cmdOptions) error {
@@ -243,8 +244,8 @@ func runCmd(cmd *exec.Cmd, options cmdOptions) error {
 	}
 
 	var oldKV, unsetKV []string
-	// override env for builtin
-	for _, pair := range cmd.Env {
+	// override env for builtin — only save/restore explicitly overridden vars
+	for _, pair := range options.EnvOverride {
 		key, value := splitKeyValue(pair)
 		if oldValue, isSet := os.LookupEnv(key); isSet {
 			oldKV = append(oldKV, key+"="+oldValue)

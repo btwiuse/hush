@@ -49,8 +49,9 @@ func runCallExpr(term console, stmt *syntax.Stmt, node *syntax.CallExpr, isPipe 
 	}
 
 	err := runCmd(cmd, cmdOptions{
-		Background: stmt.Background,
-		Pipe:       isPipe,
+		Background:  stmt.Background,
+		Pipe:        isPipe,
+		EnvOverride: env,
 	})
 	err = exitErrFromCmd(err, stmt.Negated)
 	return err
