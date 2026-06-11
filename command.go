@@ -158,9 +158,16 @@ func runCommand(term console, line string, stmt *syntax.Stmt, isPipe bool) error
 
 	case *syntax.TimeClause:
 		start := time.Now()
-		err := runCommand(term, line, node.Stmt, false)
+		var err error
+		if node.Stmt != nil {
+			err = runCommand(term, line, node.Stmt, false)
+		}
 		duration := time.Since(start)
-		fmt.Fprintf(term.Stdout(), "\n%s\t %v total\n", formatStmt(line, node.Stmt), duration)
+		fmt.Fprint(term.Stdout(), "\r\n")
+		if node.Stmt != nil {
+			fmt.Fprintf(term.Stdout(), "%s\t", formatStmt(line, node.Stmt))
+		}
+		fmt.Fprintf(term.Stdout(), "%v total\n", duration)
 		return err
 
 	case *syntax.DeclClause:
