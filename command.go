@@ -237,6 +237,9 @@ func runCmd(cmd *exec.Cmd, options cmdOptions) error {
 		if options.Background {
 			return cmd.Start()
 		}
+		if !options.Pipe {
+			return runForegroundExternal(cmd)
+		}
 		return cmd.Run()
 	}
 

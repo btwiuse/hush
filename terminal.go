@@ -165,10 +165,19 @@ func (t *terminal) ReadEvalPrint(reader io.RuneReader) error {
 		err = runLine(t, command)
 		t.lastExitCode = 0
 		if err != nil {
-			t.ErrPrint(color.RedString(err.Error()) + "\n")
-			t.lastExitCode = 1
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				t.lastExitCode = exitErr.ExitCode()
+			// Propagate exitErr to the REPL loop so exit actually works.
+			if exitErr, ok := errors.Cause(err).(*exitErr); ok {
+				return exitErr
+			}
+			if isKilledBySignal(err) {
+				t.Print("^C\n")
+				t.lastExitCode = 130
+			} else {
+				t.ErrPrint(color.RedString(err.Error()) + "\n")
+				t.lastExitCode = 1
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					t.lastExitCode = exitErr.ExitCode()
+				}
 			}
 		}
 		err := t.history.Push(command)
@@ -431,4 +440,11 @@ func (t *terminal) moveCursorToStart() {
 func (t *terminal) moveCursorToEnd() {
 	t.CursorRightN(len(t.line) - t.cursor)
 	t.cursor = len(t.line)
+}
+
+// isKilledBySignal returns true if err is from a child process
+// terminated by a signal (not a normal exit).
+func isKilledBySignal(err error) bool {
+	exitErr, ok := err.(*exec.ExitError)
+	return ok && !exitErr.Exited()
 }
