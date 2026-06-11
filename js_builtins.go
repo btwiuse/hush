@@ -4,7 +4,7 @@ package hush
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"syscall/js"
 
@@ -41,7 +41,7 @@ func jsdownload(term console, args ...string) error {
 		return errors.New("Must provide a file to download")
 	}
 	filePath := args[0]
-	fileContents, err := ioutil.ReadFile(filePath)
+	fileContents, err := os.ReadFile(filePath)
 	if err != nil {
 		return errors.Wrap(err, "Error reading file for download")
 	}

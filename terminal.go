@@ -3,7 +3,6 @@ package hush
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -68,7 +67,7 @@ func (t *terminal) Stderr() io.Writer {
 }
 
 func (t *terminal) Note() io.Writer {
-	return ioutil.Discard
+	return io.Discard
 }
 
 func (t *terminal) Print(args ...interface{}) {

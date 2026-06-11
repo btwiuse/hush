@@ -3,7 +3,6 @@ package hush
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -288,7 +287,7 @@ func (c *redirectconsole) Stderr() io.Writer {
 }
 
 func (c *redirectconsole) Note() io.Writer {
-	return ioutil.Discard
+	return io.Discard
 }
 
 func getconsoleStdin(term console) io.Reader {

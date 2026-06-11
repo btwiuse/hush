@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -89,21 +88,25 @@ func ls(term console, args ...string) error {
 }
 
 func printFileNames(term console, dir string, longForm bool) error {
-	infos, err := ioutil.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
 
 	if !longForm {
-		for _, info := range infos {
-			fmt.Fprintln(term.Stdout(), info.Name())
+		for _, entry := range entries {
+			fmt.Fprintln(term.Stdout(), entry.Name())
 		}
 		return nil
 	}
 
 	var t table
 	t.Align(leftAlign, rightAlign)
-	for _, info := range infos {
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
 		value, units := formatBytes(datasize.Bytes(info.Size()))
 		t.Add(info.Mode(), value, units, info.ModTime().Format(time.Stamp), info.Name())
 	}
