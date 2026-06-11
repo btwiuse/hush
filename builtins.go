@@ -130,6 +130,13 @@ func cd(term console, args ...string) error {
 		fallthrough
 	case 1:
 		dir := args[0]
+		toOld := dir == "-"
+		if toOld {
+			dir = os.Getenv("OLDPWD")
+			if dir == "" {
+				return errors.New("OLDPWD not set")
+			}
+		}
 		info, err := os.Stat(dir)
 		if err != nil {
 			return err
@@ -137,7 +144,20 @@ func cd(term console, args ...string) error {
 		if !info.IsDir() {
 			return errors.Errorf("Not a directory: %s", dir)
 		}
-		return os.Chdir(dir)
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if err := os.Chdir(dir); err != nil {
+			return err
+		}
+		if err := os.Setenv("OLDPWD", cwd); err != nil {
+			return err
+		}
+		if toOld {
+			fmt.Fprintln(term.Note(), dir)
+		}
+		return nil
 	default:
 		return errors.New("Too many args")
 	}
@@ -376,7 +396,7 @@ func runWithEnv(term console, env []string, args ...string) error {
 	cmd.Stdout = term.Stdout()
 	cmd.Stderr = term.Stderr()
 	cmd.Env = append(os.Environ(), env...)
-	return runCmd(cmd, cmdOptions{})
+	return runCmd(cmd, cmdOptions{EnvOverride: env})
 }
 
 func chmod(term console, args ...string) error {
