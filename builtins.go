@@ -1,6 +1,7 @@
 package hush
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -8,15 +9,28 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
+	"github.com/btwiuse/u-root/pkg/core"
+	"github.com/btwiuse/u-root/pkg/core/base64"
+	"github.com/btwiuse/u-root/pkg/core/cat"
+	"github.com/btwiuse/u-root/pkg/core/chmod"
+	"github.com/btwiuse/u-root/pkg/core/cp"
+	"github.com/btwiuse/u-root/pkg/core/find"
+	"github.com/btwiuse/u-root/pkg/core/gzip"
+	"github.com/btwiuse/u-root/pkg/core/ls"
+	"github.com/btwiuse/u-root/pkg/core/mkdir"
+	"github.com/btwiuse/u-root/pkg/core/mktemp"
+	"github.com/btwiuse/u-root/pkg/core/mv"
+	"github.com/btwiuse/u-root/pkg/core/rm"
+	"github.com/btwiuse/u-root/pkg/core/shasum"
+	"github.com/btwiuse/u-root/pkg/core/tar"
+	"github.com/btwiuse/u-root/pkg/core/touch"
+	"github.com/btwiuse/u-root/pkg/core/xargs"
 	"github.com/fatih/color"
-	"github.com/johnstarich/go/datasize"
 	"github.com/pkg/errors"
 )
 
@@ -26,25 +40,72 @@ var (
 	builtins = map[string]builtinFunc{}
 )
 
+var commandBuilders = map[string]func() core.Command{
+	"cat":    func() core.Command { return cat.New() },
+	"chmod":  func() core.Command { return chmod.New() },
+	"cp":     func() core.Command { return cp.New() },
+	"find":   func() core.Command { return find.New() },
+	"ls":     func() core.Command { return ls.New() },
+	"mkdir":  func() core.Command { return mkdir.New() },
+	"mv":     func() core.Command { return mv.New() },
+	"rm":     func() core.Command { return rm.New() },
+	"touch":  func() core.Command { return touch.New() },
+	"xargs":  func() core.Command { return xargs.New() },
+	"base64": func() core.Command { return base64.New() },
+	"gzcat":  func() core.Command { return gzip.New("gzcat") },
+	"gzip":   func() core.Command { return gzip.New("gzip") },
+	"gunzip": func() core.Command { return gzip.New("gunzip") },
+	"mktemp": func() core.Command { return mktemp.New() },
+	"shasum": func() core.Command { return shasum.New() },
+	"tar":    func() core.Command { return tar.New() },
+}
+
+func coreUtilBuiltin(name string) builtinFunc {
+	return func(term console, args ...string) error {
+		newCmd, ok := commandBuilders[name]
+		if !ok {
+			return fmt.Errorf("%s: unknown command", name)
+		}
+
+		cmd := newCmd()
+		cmd.SetIO(getconsoleStdin(term), term.Stdout(), term.Stderr())
+		wd, _ := os.Getwd()
+		cmd.SetWorkingDir(wd)
+		cmd.SetLookupEnv(func(key string) (string, bool) {
+			return os.LookupEnv(key)
+		})
+		return cmd.RunContext(context.Background(), args...)
+	}
+}
+
 func init() {
 	for k, v := range map[string]builtinFunc{
-		"cat":   cat,
-		"cd":    cd,
-		"chmod": chmod,
-		"clear": clear,
-		"curl":  curl,
-		"echo":  echo,
-		"env":   env,
-		"exit":  exit,
-		"ls":    ls,
-		"ln":    ln,
-		"mkdir": mkdir,
-		"mv":    mv,
-		"pwd":   pwd,
-		"rm":    rm,
-		"rmdir": rmdir,
-		"touch": touch,
-		"which": which,
+		"cat":    coreUtilBuiltin("cat"),
+		"cd":     cd,
+		"chmod":  coreUtilBuiltin("chmod"),
+		"clear":  clear,
+		"cp":     coreUtilBuiltin("cp"),
+		"curl":   curl,
+		"echo":   echo,
+		"env":    env,
+		"exit":   exit,
+		"find":   coreUtilBuiltin("find"),
+		"ls":     coreUtilBuiltin("ls"),
+		"ln":     ln,
+		"mkdir":  coreUtilBuiltin("mkdir"),
+		"mv":     coreUtilBuiltin("mv"),
+		"pwd":    pwd,
+		"rm":     coreUtilBuiltin("rm"),
+		"rmdir":  rmdir,
+		"touch":  coreUtilBuiltin("touch"),
+		"which":  which,
+		"xargs":  coreUtilBuiltin("xargs"),
+		"base64": coreUtilBuiltin("base64"),
+		"gzip":   coreUtilBuiltin("gzip"),
+		"gunzip": coreUtilBuiltin("gunzip"),
+		"mktemp": coreUtilBuiltin("mktemp"),
+		"shasum": coreUtilBuiltin("shasum"),
+		"tar":    coreUtilBuiltin("tar"),
 	} {
 		builtins[k] = v
 	}
@@ -62,66 +123,6 @@ func pwd(term console, args ...string) error {
 	}
 	fmt.Fprintln(term.Stdout(), path)
 	return nil
-}
-
-func ls(term console, args ...string) error {
-	set := flag.NewFlagSet("ls", flag.ContinueOnError)
-	longForm := set.Bool("l", false, "Long format")
-	err := set.Parse(args)
-	if err != nil {
-		if err == flag.ErrHelp {
-			return nil
-		}
-		return err
-	}
-	args = set.Args()
-	if len(args) == 0 {
-		args = []string{"."}
-	}
-	if len(args) == 1 {
-		return printFileNames(term, args[0], *longForm)
-	}
-	for _, f := range args {
-		fmt.Fprintln(term.Stdout(), f+":")
-		err := printFileNames(term, f, *longForm)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintln(term.Stdout())
-	}
-	return nil
-}
-
-func printFileNames(term console, dir string, longForm bool) error {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return err
-	}
-
-	if !longForm {
-		for _, entry := range entries {
-			fmt.Fprintln(term.Stdout(), entry.Name())
-		}
-		return nil
-	}
-
-	var t table
-	t.Align(leftAlign, rightAlign)
-	for _, entry := range entries {
-		info, err := entry.Info()
-		if err != nil {
-			return err
-		}
-		value, units := formatBytes(datasize.Bytes(info.Size()))
-		t.Add(info.Mode(), value, units, info.ModTime().Format(time.Stamp), info.Name())
-	}
-	fmt.Fprint(term.Stdout(), t)
-	return nil
-}
-
-func formatBytes(b datasize.Size) (string, string) {
-	value, unit := b.FormatSI()
-	return strings.TrimSuffix(fmt.Sprintf("%.1f", value), ".0"), unit
 }
 
 func cd(term console, args ...string) error {
@@ -168,128 +169,6 @@ func cd(term console, args ...string) error {
 	}
 }
 
-func mkdir(term console, args ...string) error {
-	switch len(args) {
-	case 0:
-		return errors.New("Must provide a path to create a directory")
-	default:
-		for _, dir := range args {
-			err := os.Mkdir(dir, 0755)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-
-func cat(term console, args ...string) error {
-	if len(args) == 0 {
-		return catStdin(term)
-	}
-
-	for _, path := range args {
-		if info, err := os.Stat(path); err == nil && info.IsDir() {
-			return errors.Errorf("%s: Is a directory", path)
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(term.Stdout(), f)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func catStdin(term console) error {
-	stdin := getconsoleStdin(term)
-	stdout := term.Stdout()
-	_, stdoutIsTerm := stdout.(*carriageReturnWriter)
-
-	buf := make([]byte, 1)
-	for {
-		n, err := stdin.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-			return err
-		}
-		if n == 0 {
-			continue
-		}
-		b := buf[0]
-		switch b {
-		case '\x04': // Ctrl+D
-			return nil
-		case '\x03': // Ctrl+C
-			return nil
-		case '\r': // Enter in raw mode
-			stdout.Write([]byte{'\n'})
-			if !stdoutIsTerm {
-				term.Stderr().Write([]byte{'\n'})
-			}
-		default:
-			stdout.Write([]byte{b})
-			if !stdoutIsTerm {
-				term.Stderr().Write([]byte{b})
-			}
-		}
-	}
-}
-
-func mv(term console, args ...string) error {
-	switch len(args) {
-	case 0, 1:
-		return errors.New("Not enough args")
-	case 2:
-		src := args[0]
-		dest := args[1]
-		if strings.HasSuffix(dest, "/") {
-			dest += path.Base(src)
-		}
-		return os.Rename(src, dest)
-	default:
-		return errors.New("Too many args")
-	}
-}
-
-func rm(term console, args ...string) error {
-	set := flag.NewFlagSet("rm", flag.ContinueOnError)
-	recursive := set.Bool("r", false, "Remove recursively")
-	if err := set.Parse(args); err != nil {
-		return err
-	}
-
-	if set.NArg() == 0 {
-		return errors.New("Not enough args")
-	}
-
-	rmFunc := os.RemoveAll
-	if !*recursive {
-		rmFunc = func(path string) error {
-			info, err := os.Stat(path)
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				return &os.PathError{Path: path, Op: "remove", Err: syscall.EISDIR}
-			}
-			return os.Remove(path)
-		}
-	}
-	for _, f := range set.Args() {
-		err := rmFunc(f)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func rmdir(term console, args ...string) error {
 	if len(args) == 0 {
 		return errors.New("Not enough args")
@@ -305,30 +184,6 @@ func rmdir(term console, args ...string) error {
 		err = os.Remove(path)
 		if err != nil {
 			return err
-		}
-	}
-	return nil
-}
-
-func touch(term console, args ...string) error {
-	if len(args) == 0 {
-		return errors.New("Not enough args")
-	}
-	now := time.Now()
-	for _, path := range args {
-		err := os.Chtimes(path, now, now)
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if os.IsNotExist(err) {
-			f, err := os.Create(path)
-			if err != nil {
-				return err
-			}
-			err = f.Close()
-			if err != nil {
-				return err
-			}
 		}
 	}
 	return nil
@@ -363,7 +218,7 @@ func curl(term console, args ...string) error {
 
 	client := &http.Client{}
 	if *follow {
-		client.CheckRedirect = nil // default follows up to 10 redirects
+		client.CheckRedirect = nil
 	} else {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -481,7 +336,7 @@ func splitKeyValue(kv string) (key, value string) {
 }
 
 func runWithEnv(term console, env []string, args ...string) error {
-	cmd := exec.Command(args[0], args[1:]...) // nolint:gosec // Running any given process args is the whole point, so this isn't a security issue.
+	cmd := exec.Command(args[0], args[1:]...) // nolint:gosec
 	cmd.Stdout = term.Stdout()
 	cmd.Stderr = term.Stderr()
 	cmd.Env = append(os.Environ(), env...)
@@ -493,7 +348,6 @@ func ln(term console, args ...string) error {
 	symbolic := set.Bool("s", false, "Create symbolic link")
 	force := set.Bool("f", false, "Remove existing destination file")
 
-	// Expand combined short flags like -sf into -s -f
 	var expanded []string
 	for _, a := range args {
 		if strings.HasPrefix(a, "-") && len(a) > 2 && a[0] == '-' && a[1] != '-' {
@@ -527,17 +381,4 @@ func ln(term console, args ...string) error {
 	}
 
 	return os.Symlink(target, linkName)
-}
-
-func chmod(term console, args ...string) error {
-	if len(args) < 2 {
-		return errors.New("Not enough args")
-	}
-
-	perm, err := strconv.ParseInt(args[0], 8, 12) // parse octal permission
-	if err != nil {
-		return err
-	}
-	file := args[1]
-	return os.Chmod(file, os.FileMode(perm))
 }
