@@ -33,6 +33,7 @@ func init() {
 		"env":   env,
 		"exit":  exit,
 		"ls":    ls,
+		"ln":    ln,
 		"mkdir": mkdir,
 		"mv":    mv,
 		"pwd":   pwd,
@@ -397,6 +398,47 @@ func runWithEnv(term console, env []string, args ...string) error {
 	cmd.Stderr = term.Stderr()
 	cmd.Env = append(os.Environ(), env...)
 	return runCmd(cmd, cmdOptions{EnvOverride: env})
+}
+
+func ln(term console, args ...string) error {
+	set := flag.NewFlagSet("ln", flag.ContinueOnError)
+	symbolic := set.Bool("s", false, "Create symbolic link")
+	force := set.Bool("f", false, "Remove existing destination file")
+
+	// Expand combined short flags like -sf into -s -f
+	var expanded []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") && len(a) > 2 && a[0] == '-' && a[1] != '-' {
+			for _, ch := range a[1:] {
+				expanded = append(expanded, "-"+string(ch))
+			}
+		} else {
+			expanded = append(expanded, a)
+		}
+	}
+
+	if err := set.Parse(expanded); err != nil {
+		return err
+	}
+
+	if !*symbolic {
+		return errors.New("Only -s (symbolic) links are supported")
+	}
+
+	if set.NArg() != 2 {
+		return errors.New("Not enough args")
+	}
+
+	target := set.Arg(0)
+	linkName := set.Arg(1)
+
+	if *force {
+		if err := os.Remove(linkName); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	return os.Symlink(target, linkName)
 }
 
 func chmod(term console, args ...string) error {

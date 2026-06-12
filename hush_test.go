@@ -46,6 +46,107 @@ func TestExport(t *testing.T) {
 	}
 }
 
+func TestLn(t *testing.T) {
+	t.Parallel()
+	t.Run("ln -s creates symlink", func(t *testing.T) {
+		t.Parallel()
+		term := &redirectconsole{
+			stdin:  &bytes.Buffer{},
+			stdout: &bytes.Buffer{},
+			stderr: &bytes.Buffer{},
+		}
+
+		dir := t.TempDir()
+		target := dir + "/target"
+		link := dir + "/link"
+
+		if err := runLine(term, "touch "+target); err != nil {
+			t.Fatalf("unexpected error creating target: %v", err)
+		}
+		if err := runLine(term, "ln -s "+target+" "+link); err != nil {
+			t.Fatalf("unexpected error creating symlink: %v", err)
+		}
+		info, err := os.Lstat(link)
+		if err != nil {
+			t.Fatalf("failed to lstat symlink: %v", err)
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			t.Errorf("expected symlink, got mode %v", info.Mode())
+		}
+		got, err := os.Readlink(link)
+		if err != nil {
+			t.Fatalf("failed to read symlink: %v", err)
+		}
+		if got != target {
+			t.Errorf("expected symlink target %q, got %q", target, got)
+		}
+	})
+
+	t.Run("ln without -s returns error", func(t *testing.T) {
+		t.Parallel()
+		term := &redirectconsole{
+			stdin:  &bytes.Buffer{},
+			stdout: &bytes.Buffer{},
+			stderr: &bytes.Buffer{},
+		}
+
+		dir := t.TempDir()
+		if err := runLine(term, "ln "+dir+" "+dir+"/link"); err == nil {
+			t.Error("expected error for ln without -s")
+		}
+	})
+
+	t.Run("ln -sf replaces existing file", func(t *testing.T) {
+		t.Parallel()
+		term := &redirectconsole{
+			stdin:  &bytes.Buffer{},
+			stdout: &bytes.Buffer{},
+			stderr: &bytes.Buffer{},
+		}
+
+		dir := t.TempDir()
+		target1 := dir + "/target1"
+		target2 := dir + "/target2"
+		link := dir + "/link"
+
+		// Create two targets and an initial symlink
+		if err := runLine(term, "touch "+target1); err != nil {
+			t.Fatalf("unexpected error creating target1: %v", err)
+		}
+		if err := runLine(term, "touch "+target2); err != nil {
+			t.Fatalf("unexpected error creating target2: %v", err)
+		}
+		if err := runLine(term, "ln -s "+target1+" "+link); err != nil {
+			t.Fatalf("unexpected error creating first symlink: %v", err)
+		}
+
+		// Force override to point to target2
+		if err := runLine(term, "ln -sf "+target2+" "+link); err != nil {
+			t.Fatalf("unexpected error force-creating symlink: %v", err)
+		}
+		got, err := os.Readlink(link)
+		if err != nil {
+			t.Fatalf("failed to read symlink: %v", err)
+		}
+		if got != target2 {
+			t.Errorf("expected symlink target %q after force, got %q", target2, got)
+		}
+	})
+
+	t.Run("ln -s with 1 arg returns error", func(t *testing.T) {
+		t.Parallel()
+		term := &redirectconsole{
+			stdin:  &bytes.Buffer{},
+			stdout: &bytes.Buffer{},
+			stderr: &bytes.Buffer{},
+		}
+
+		if err := runLine(term, "ln -s /tmp"); err == nil {
+			t.Error("expected error for ln -s with 1 arg")
+		}
+	})
+}
+
 func TestRun(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
