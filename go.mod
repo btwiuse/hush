@@ -8,7 +8,7 @@ require (
 	charm.land/bubbles/v2 v2.1.0
 	github.com/btwiuse/u-root v0.17.0
 	github.com/fatih/color v1.19.0
-	github.com/justwasm/bubbline v0.0.3
+	github.com/justwasm/bubbline v0.0.4
 	github.com/pkg/errors v0.9.1
 	golang.org/x/term v0.41.0
 	mvdan.cc/sh/v3 v3.13.1
