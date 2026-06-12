@@ -2,7 +2,10 @@ package hush
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/fatih/color"
@@ -143,6 +146,139 @@ func TestLn(t *testing.T) {
 
 		if err := runLine(term, "ln -s /tmp"); err == nil {
 			t.Error("expected error for ln -s with 1 arg")
+		}
+	})
+}
+
+func TestCurl(t *testing.T) {
+	t.Parallel()
+
+	t.Run("curl GET body", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("hello world"))
+		}))
+		defer ts.Close()
+
+		var out bytes.Buffer
+		term := &redirectconsole{
+			stdout: &out,
+			stderr: &bytes.Buffer{},
+		}
+		if err := curl(term, ts.URL); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out.String(), "hello world") {
+			t.Errorf("expected body in output, got: %s", out.String())
+		}
+	})
+
+	t.Run("curl -I headers only", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("hello world"))
+		}))
+		defer ts.Close()
+
+		var out bytes.Buffer
+		term := &redirectconsole{
+			stdout: &out,
+			stderr: &bytes.Buffer{},
+		}
+		if err := curl(term, "-I", ts.URL); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out.String(), "200 OK") {
+			t.Errorf("expected 200 OK in output, got: %s", out.String())
+		}
+	})
+
+	t.Run("curl with no URL", func(t *testing.T) {
+		var out bytes.Buffer
+		term := &redirectconsole{
+			stdout: &out,
+			stderr: &bytes.Buffer{},
+		}
+		if err := curl(term); err == nil {
+			t.Error("expected error for no URL")
+		}
+	})
+
+	t.Run("curl -O saves to file", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("hello world"))
+		}))
+		defer ts.Close()
+
+		dir := t.TempDir()
+		oldWd, _ := os.Getwd()
+		os.Chdir(dir)
+		defer os.Chdir(oldWd)
+
+		var out bytes.Buffer
+		term := &redirectconsole{
+			stdout: &out,
+			stderr: &bytes.Buffer{},
+		}
+		if err := curl(term, "-O", ts.URL+"/testfile.txt"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, err := os.ReadFile(dir + "/testfile.txt")
+		if err != nil {
+			t.Fatalf("failed to read saved file: %v", err)
+		}
+		if string(data) != "hello world" {
+			t.Errorf("expected 'hello world', got %q", string(data))
+		}
+	})
+
+	t.Run("curl -L follows redirects", func(t *testing.T) {
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("hello world"))
+		}))
+		defer target.Close()
+
+		redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL, http.StatusFound)
+		}))
+		defer redirectServer.Close()
+
+		var out bytes.Buffer
+		term := &redirectconsole{
+			stdout: &out,
+			stderr: &bytes.Buffer{},
+		}
+		if err := curl(term, "-L", redirectServer.URL); err != nil {
+			t.Fatalf("unexpected error following redirect: %v", err)
+		}
+		if !strings.Contains(out.String(), "hello world") {
+			t.Errorf("expected body after redirect, got: %s", out.String())
+		}
+	})
+
+	t.Run("curl without -L does not follow redirect", func(t *testing.T) {
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("should not reach"))
+		}))
+		defer target.Close()
+
+		redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL, http.StatusFound)
+		}))
+		defer redirectServer.Close()
+
+		var out bytes.Buffer
+		term := &redirectconsole{
+			stdout: &out,
+			stderr: &bytes.Buffer{},
+		}
+		if err := curl(term, redirectServer.URL); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if strings.Contains(out.String(), "should not reach") {
+			t.Error("expected NOT to follow redirect without -L")
 		}
 	})
 }

@@ -4,9 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -29,6 +32,7 @@ func init() {
 		"cd":    cd,
 		"chmod": chmod,
 		"clear": clear,
+		"curl":  curl,
 		"echo":  echo,
 		"env":   env,
 		"exit":  exit,
@@ -341,6 +345,90 @@ func which(term console, args ...string) error {
 		}
 		fmt.Fprintln(term.Stdout(), path)
 	}
+	return nil
+}
+
+func curl(term console, args ...string) error {
+	set := flag.NewFlagSet("curl", flag.ContinueOnError)
+	head := set.Bool("I", false, "Fetch headers only")
+	follow := set.Bool("L", false, "Follow redirects")
+	output := set.Bool("O", false, "Save to remote-named file")
+	if err := set.Parse(args); err != nil {
+		return err
+	}
+	urls := set.Args()
+	if len(urls) == 0 {
+		return errors.New("No URL provided")
+	}
+
+	client := &http.Client{}
+	if *follow {
+		client.CheckRedirect = nil // default follows up to 10 redirects
+	} else {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+
+	for _, rawURL := range urls {
+		if !strings.Contains(rawURL, "://") {
+			rawURL = "https://" + rawURL
+		}
+
+		method := http.MethodGet
+		if *head {
+			method = http.MethodHead
+		}
+
+		req, err := http.NewRequest(method, rawURL, nil)
+		if err != nil {
+			return errors.Wrap(err, rawURL)
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return errors.Wrap(err, rawURL)
+		}
+
+		fmt.Fprintf(term.Stdout(), "HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
+		resp.Header.Write(term.Stdout())
+		fmt.Fprintln(term.Stdout())
+
+		if *head {
+			resp.Body.Close()
+			continue
+		}
+
+		if *output {
+			u, err := url.Parse(rawURL)
+			if err != nil {
+				resp.Body.Close()
+				return errors.Wrap(err, rawURL)
+			}
+			filename := filepath.Base(u.Path)
+			if filename == "/" || filename == "." || filename == "" {
+				filename = "index.html"
+			}
+			f, err := os.Create(filename)
+			if err != nil {
+				resp.Body.Close()
+				return err
+			}
+			_, err = io.Copy(f, resp.Body)
+			resp.Body.Close()
+			f.Close()
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err = io.Copy(term.Stdout(), resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
