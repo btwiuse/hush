@@ -71,44 +71,48 @@ func getCompletionsErr(line string, cursor int) ([]completion, error) {
 }
 
 func getStatementCompletions(commandName string, word string, start, end int) ([]completion, error) {
-	switch {
-	case strings.Contains(word, "/"):
-		dir := word
-		filter := false
+	var dir string
+	var filter string
+
+	if strings.Contains(word, "/") {
+		dir = word
 		info, err := os.Stat(dir)
 		if err != nil || !info.IsDir() {
 			dir = filepath.Dir(dir)
-			filter = true
+			filter = filepath.Base(word)
 		}
-		dirEntries, err := os.ReadDir(dir)
-		if err != nil {
-			return nil, nil
-		}
-		var completions []completion
-		for _, d := range dirEntries {
-			base := filepath.Base(word)
-			name := d.Name()
-			if !filter || strings.HasPrefix(name, base) {
-				file := fileJoin(dir, name)
-				if d.IsDir() {
-					file += string(filepath.Separator)
-				}
-				completions = append(completions, completion{
-					Completion: file,
-					Start:      start,
-					End:        end,
-				})
-			}
-		}
-		return completions, nil
-	default:
+	} else {
+		dir = "."
+		filter = word
+	}
+
+	dirEntries, err := os.ReadDir(dir)
+	if err != nil {
 		return nil, nil
 	}
+
+	var completions []completion
+	for _, d := range dirEntries {
+		name := d.Name()
+		if filter != "" && !strings.HasPrefix(name, filter) {
+			continue
+		}
+		file := fileJoin(dir, name)
+		if d.IsDir() {
+			file += string(filepath.Separator)
+		}
+		completions = append(completions, completion{
+			Completion: file,
+			Start:      start,
+			End:        end,
+		})
+	}
+	return completions, nil
 }
 
-func fileJoin(a, b string) string {
-	if a == "." {
-		return "." + string(filepath.Separator) + b
+func fileJoin(dir, name string) string {
+	if dir == "." {
+		return name
 	}
-	return filepath.Join(a, b)
+	return filepath.Join(dir, name)
 }

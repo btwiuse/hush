@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"golang.org/x/term"
 )
 
 func cat(term console, args ...string) error {
@@ -31,7 +32,7 @@ func cat(term console, args ...string) error {
 func catStdin(term console) error {
 	stdin := getconsoleStdin(term)
 	stdout := term.Stdout()
-	_, stdoutIsTerm := stdout.(*carriageReturnWriter)
+	stdoutIsTerm := isTerminal(stdout)
 
 	buf := make([]byte, 1)
 	for {
@@ -63,4 +64,12 @@ func catStdin(term console) error {
 			}
 		}
 	}
+}
+
+func isTerminal(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	return term.IsTerminal(int(f.Fd()))
 }

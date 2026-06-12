@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	"github.com/fatih/color"
+	"github.com/justwasm/bubbline"
 )
 
 const (
@@ -65,4 +66,12 @@ func newPromptData(term *terminal) (data *promptData, err error) {
 	}
 
 	return
+}
+
+func updatePrompt(m *bubbline.Editor, lastExitCode int) {
+	s, err := promptErr(&terminal{lastExitCode: lastExitCode})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Failed to render prompt: ", err)
+	}
+	m.Prompt = s
 }
