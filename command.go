@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -178,12 +179,34 @@ func (c *interpConsole) Stderr() io.Writer { return c.hc.Stderr }
 func (c *interpConsole) Note() io.Writer   { return io.Discard }
 func (c *interpConsole) Stdin() io.Reader  { return c.hc.Stdin }
 
-// ctrlcAwareStdin wraps stdin to intercept Ctrl+C (byte 0x03) on Wasm,
-// where there are no OS signals.  When 0x03 is detected, it cancels the
-// context (which triggers the AfterFunc in execHandlerNoExecBit to kill
-// the process via os.Kill), and filters the byte out of the stream.
-// On non-Wasm platforms it's a no-op — the terminal driver handles SIGINT.
-func ctrlcAwareStdin(cancel context.CancelFunc, stdin io.Reader) io.Reader {
+// wasmKiller holds a kill function for the Wasm Ctrl+C handler.
+// The function is set after cmd.Start() so the goroutine can kill
+// the process directly when it sees 0x03 on stdin.
+type wasmKiller struct {
+	mu     sync.Mutex
+	killFn func()
+}
+
+func (w *wasmKiller) set(fn func()) {
+	w.mu.Lock()
+	w.killFn = fn
+	w.mu.Unlock()
+}
+
+func (w *wasmKiller) kill() {
+	w.mu.Lock()
+	fn := w.killFn
+	w.mu.Unlock()
+	if fn != nil {
+		fn()
+	}
+}
+
+// ctrlcStdin wraps stdin to intercept Ctrl+C (byte 0x03) on Wasm,
+// where there are no OS signals.  When 0x03 is detected, it calls
+// wk.kill() to terminate the child process directly, and filters
+// the byte out of the stream.  On non-Wasm platforms it's a no-op.
+func ctrlcStdin(wk *wasmKiller, stdin io.Reader) io.Reader {
 	if runtime.GOARCH != "wasm" {
 		return stdin
 	}
@@ -196,11 +219,10 @@ func ctrlcAwareStdin(cancel context.CancelFunc, stdin io.Reader) io.Reader {
 			if err != nil {
 				return
 			}
-			// Scan for Ctrl+C and filter it out
 			j := 0
 			for i := 0; i < n; i++ {
 				if buf[i] == 0x03 {
-					cancel()
+					wk.kill()
 				} else {
 					buf[j] = buf[i]
 					j++
@@ -229,22 +251,26 @@ func execHandlerNoExecBit(killTimeout time.Duration) interp.ExecHandlerFunc {
 			return interp.ExitStatus(127)
 		}
 
-		// Create a cancellable context so we can kill the process on Ctrl+C.
-		// On Wasm this is triggered by ctrlcAwareStdin; on native by SIGINT.
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
+		// On Wasm, wrap stdin to intercept Ctrl+C (no OS signals).
+		// wk.set() is called after cmd.Start() so the goroutine can
+		// kill the child process directly via cmd.Process.Kill().
+		wk := &wasmKiller{}
+		defer wk.set(nil)
 
 		cmd := exec.Cmd{
 			Path:   path,
 			Args:   args,
 			Env:    execEnvFromEnviron(hc.Env),
 			Dir:    hc.Dir,
-			Stdin:  ctrlcAwareStdin(cancel, hc.Stdin),
+			Stdin:  ctrlcStdin(wk, hc.Stdin),
 			Stdout: hc.Stdout,
 			Stderr: hc.Stderr,
 		}
 		err = cmd.Start()
 		if err == nil {
+			if runtime.GOARCH == "wasm" {
+				wk.set(func() { _ = cmd.Process.Kill() })
+			}
 			stopf := context.AfterFunc(ctx, func() {
 				if killTimeout <= 0 || runtime.GOOS == "windows" {
 					_ = cmd.Process.Signal(os.Kill)
