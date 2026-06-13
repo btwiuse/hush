@@ -28,16 +28,20 @@ hush Run()
 两个独立 binary，通过 stdin pipe 组合：
 
 ```
-hu (行编程序)     sh (裸 REPL)
-─────────────     ──────────
-bubbline 行编辑    parser.InteractiveSeq
-历史、补全          $ / > 提示（终端模式）
-multi-line         无提示（pipe 模式）
-      │                │
-      │   stdin pipe    │
-      ├────────────────►│
-      │   stdout/stderr │
-      │◄────── 直通 ────┤
+hu (智能行编程序)       sh (裸 REPL)
+─────────────────       ──────────
+bubbline 行编辑          parser.InteractiveSeq
+历史、补全                $ / > 提示（终端模式）
+multi-line               无提示（pipe 模式）
+智能提示检测                │
+      │                    │
+      │   PTY (master)     │
+      ├───────────────────►│  stdin
+      │◄───────────────────┤  stdout (经 ptyOutput)
+      │   检测最后一行      │
+      │   识别 prompt      │
+      │   用 child 的真实  │
+      │   提示符显示        │
 ```
 
 ### cmd/sh
@@ -53,14 +57,16 @@ multi-line         无提示（pipe 模式）
 
 ### cmd/hu
 
-基于 bubbline 的行编程序，功能：
+基于 bubbline 的智能行编程序，通过 PTY 连接子进程，功能：
 
 - 行编辑（Emacs 键绑定）
 - 历史记录（`~/.history`，自动保存）
 - 多行输入（`\` 续行）
 - Ctrl+D / Ctrl+C 处理
+- **自动提示检测**：读取子进程 PTY 输出，跟踪最后一个不完整行作为提示符
+- **智能 GetLine**：仅在检测到子进程处于提示符等待状态时才显示输入区
 
-组合方式：
+#### 组合方式
 
 ```sh
 # 等同于原来 ./cmd/hush
@@ -71,6 +77,34 @@ multi-line         无提示（pipe 模式）
 ./hu lua
 ./hu bc
 ```
+
+#### 架构
+
+```
+ptyOutput (后台 goroutine)
+  ├─ ptmx.Read() → 读取子进程所有输出
+  ├─ os.Stdout.Write() → 直通终端
+  └─ 跟踪 lastLine（最后一个不完整行）
+       └─ WaitForPrompt(idleTimeout)
+            └─ 输出静默 100ms 后返回 lastLine 作为 prompt
+
+runEditor 主循环:
+  1. WaitForPrompt → 拿到子进程真实 prompt
+  2. m.Prompt = detectedPrompt
+  3. m.GetLine() → 用户输入
+  4. ptmx.Write(input) → 发送给子进程
+  5. 回到 1
+```
+
+#### 文件结构
+
+| 文件 | 标签 | 职责 |
+|------|------|------|
+| `main.go` | 无 | 共享辅助函数（补全、续行检测、fallback 提示） |
+| `hu_native.go` | `!js` | `main()` + prompt 感知的 `runEditor` 循环 |
+| `hu_js.go` | `js` | `main()` + 简单 `runEditor`（wasm 回退） |
+| `pty_native.go` | `!js` | `newCmd()` 返回 `*os.File` + `ptyOutput` 提示检测器 |
+| `pty_js.go` | `js` | `newCmd()` 返回 `io.WriteCloser` |
 
 ### package hush 新增公开 API
 
@@ -95,17 +129,23 @@ func RunLine(runner, line) error                 // 执行单行
 
 ### ~~2. 提示符不完整~~
 
-已解决。`hu` 使用绿色 `➜ dir $` 提示符，显示当前目录名（home 目录显示 `~`）。退出码指示器未跟踪（需改架构）。
+已解决。`hu` 自动检测子进程（sh/python/lua 等）输出的真实提示符。
+
+工作原理：`ptyOutput` 后台读取 PTY 输出，跟踪最后一个不完整行（即子进程停留在提示符等待输入时的最后一行）。当输出静默 100ms 后，将该行作为 `bubbline` 的 prompt 显示。
+
+若检测失败（子进程无提示或退出），回退到绿色 `➜ dir $`。
 
 ### ~~3. Tab 补全未实现~~
 
 已解决。`hu` 的 `hushAutoComplete` 实现了基于文件系统的路径补全：找到光标所在单词，按 `/` 分割目录和前缀，列出匹配项。目录带 `/` 后缀。
 
-### 4. 输出与 bubbline 显示交错
+### ~~4. 输出与 bubbline 显示交错~~
 
-`sh` 的 stdout/stderr 通过 PTY 直通终端（`io.Copy(os.Stdout, ptmx)`）。若命令输出出现时 bubbline 正在显示提示符，输出会打印在当前光标位置，bubbline 在下一次按键时重绘。视觉上偶有闪烁。
+已解决。新架构移除了盲目的 `io.Copy(os.Stdout, ptmx)`，改为 `ptyOutput` 后台 goroutine 管理 PTY 输出：
 
-根本原因：`GetLine` 内部阻塞在 `p.Run()`，无法在 TUI 运行期间处理 PTY 输出。channel 方案会延迟输出到下一次 `GetLine` 调用，需要多按一次回车。当前直通方案是可接受的折中。
+- **子进程输出时**：所有输出通过 goroutine 直通 `os.Stdout`，此时 `GetLine` 不在运行，无交错问题。
+- **等待输入时**：`WaitForPrompt` 检测到输出静默 100ms 后才调用 `GetLine`，此时子进程无输出，bubbline 独占终端。
+- **切换时机**：按下回车后立即退出 `GetLine`，进入 passthrough 模式；检测到 prompt 后再重新进入输入模式。
 
 ### 5. 多行构造无视觉提示
 
