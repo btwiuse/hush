@@ -122,6 +122,11 @@ func runLine(runner *interp.Runner, term console, line string) error {
 	if parser.Incomplete() {
 		return errors.New("Incomplete command: Multi-line commands not supported")
 	}
+	// Sync the OS working directory with interp's internal state, so that
+	// os.Getwd() (used by the prompt and tab completion) reflects cd commands.
+	if d := runner.Dir; d != "" {
+		_ = os.Chdir(d)
+	}
 	return nil
 }
 
