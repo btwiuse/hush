@@ -7,16 +7,18 @@ import (
 	"os/exec"
 )
 
-func newCmd(args []string) (*exec.Cmd, io.WriteCloser, error) {
+func newCmd(args []string) (*exec.Cmd, io.WriteCloser, <-chan []byte, error) {
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if err := cmd.Start(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return cmd, stdin, nil
+	ch := make(chan []byte)
+	close(ch)
+	return cmd, stdin, ch, nil
 }
