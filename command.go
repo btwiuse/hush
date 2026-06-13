@@ -178,6 +178,44 @@ func (c *interpConsole) Stderr() io.Writer { return c.hc.Stderr }
 func (c *interpConsole) Note() io.Writer   { return io.Discard }
 func (c *interpConsole) Stdin() io.Reader  { return c.hc.Stdin }
 
+// ctrlcAwareStdin wraps stdin to intercept Ctrl+C (byte 0x03) on Wasm,
+// where there are no OS signals.  When 0x03 is detected, it cancels the
+// context (which triggers the AfterFunc in execHandlerNoExecBit to kill
+// the process via os.Kill), and filters the byte out of the stream.
+// On non-Wasm platforms it's a no-op — the terminal driver handles SIGINT.
+func ctrlcAwareStdin(cancel context.CancelFunc, stdin io.Reader) io.Reader {
+	if runtime.GOARCH != "wasm" {
+		return stdin
+	}
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		buf := make([]byte, 4096)
+		for {
+			n, err := stdin.Read(buf)
+			if err != nil {
+				return
+			}
+			// Scan for Ctrl+C and filter it out
+			j := 0
+			for i := 0; i < n; i++ {
+				if buf[i] == 0x03 {
+					cancel()
+				} else {
+					buf[j] = buf[i]
+					j++
+				}
+			}
+			if j > 0 {
+				if _, err := pw.Write(buf[:j]); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	return pr
+}
+
 // execHandlerNoExecBit returns an interp.ExecHandlerFunc that finds and executes
 // binaries without checking the executable bit (mode bits are unreliable on
 // some special filesystems like Wasm or FUSE).  Otherwise behaves like the
@@ -190,12 +228,18 @@ func execHandlerNoExecBit(killTimeout time.Duration) interp.ExecHandlerFunc {
 			fmt.Fprintln(hc.Stderr, err)
 			return interp.ExitStatus(127)
 		}
+
+		// Create a cancellable context so we can kill the process on Ctrl+C.
+		// On Wasm this is triggered by ctrlcAwareStdin; on native by SIGINT.
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
 		cmd := exec.Cmd{
 			Path:   path,
 			Args:   args,
 			Env:    execEnvFromEnviron(hc.Env),
 			Dir:    hc.Dir,
-			Stdin:  hc.Stdin,
+			Stdin:  ctrlcAwareStdin(cancel, hc.Stdin),
 			Stdout: hc.Stdout,
 			Stderr: hc.Stderr,
 		}
