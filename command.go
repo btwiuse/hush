@@ -4,7 +4,9 @@ import (
 	"context"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/btwiuse/sh/v3/interp"
 	"github.com/btwiuse/sh/v3/syntax"
@@ -98,6 +100,14 @@ func runLine(runner *interp.Runner, term console, line string) error {
 	parser := syntax.NewParser()
 	var cmdErr error
 	ctx := context.Background()
+
+	// Catch SIGINT so hush survives when the user presses Ctrl+C during
+	// an external command.  In cooked mode (after bubbletea exits / before
+	// it starts), Ctrl+C sends SIGINT to the entire foreground process
+	// group — both hush and the child.  This handler keeps hush alive.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT)
+	defer signal.Stop(sigCh)
 
 	err := parser.Stmts(strings.NewReader(line), func(stmt *syntax.Stmt) bool {
 		cmdErr = runner.Run(ctx, stmt)
