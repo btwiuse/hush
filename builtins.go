@@ -29,6 +29,7 @@ import (
 	"github.com/btwiuse/u-root/pkg/core/touch"
 	"github.com/btwiuse/u-root/pkg/core/xargs"
 	"github.com/pkg/errors"
+	lnpkg "github.com/btwiuse/hush/busybox/ln"
 )
 
 type builtinFunc func(term console, args ...string) error
@@ -252,41 +253,5 @@ func env(term console, args ...string) error {
 }
 
 func ln(term console, args ...string) error {
-	set := flag.NewFlagSet("ln", flag.ContinueOnError)
-	symbolic := set.Bool("s", false, "Create symbolic link")
-	force := set.Bool("f", false, "Remove existing destination file")
-
-	var expanded []string
-	for _, a := range args {
-		if strings.HasPrefix(a, "-") && len(a) > 2 && a[0] == '-' && a[1] != '-' {
-			for _, ch := range a[1:] {
-				expanded = append(expanded, "-"+string(ch))
-			}
-		} else {
-			expanded = append(expanded, a)
-		}
-	}
-
-	if err := set.Parse(expanded); err != nil {
-		return err
-	}
-
-	if !*symbolic {
-		return errors.New("Only -s (symbolic) links are supported")
-	}
-
-	if set.NArg() != 2 {
-		return errors.New("Not enough args")
-	}
-
-	target := set.Arg(0)
-	linkName := set.Arg(1)
-
-	if *force {
-		if err := os.Remove(linkName); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	}
-
-	return os.Symlink(target, linkName)
+	return lnpkg.Run(args)
 }
