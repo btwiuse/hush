@@ -21,6 +21,7 @@ var ProgramOptions = []tea.ProgramOption{}
 
 func (t *terminal) bubblineReadEvalPrintLoop() int {
 	m := bubbline.New()
+	m.ShowHelp = false
 
 	home, err := os.UserHomeDir()
 	if err == nil {
