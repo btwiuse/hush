@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/btwiuse/sh/v3/expand"
 	"github.com/btwiuse/sh/v3/interp"
@@ -109,6 +113,8 @@ func runLine(runner *interp.Runner, term console, line string) error {
 // commands registered in the hush builtins map and executes them.
 // It also syncs interp's exported env vars to os.Setenv before running
 // hush builtins, so os.Environ() reflects shell exports.
+// For non-builtin commands, it uses execHandlerNoExecBit which skips the
+// executable mode bit check (unreliable on some filesystems like Wasm).
 func hushBuiltinMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 	return func(ctx context.Context, args []string) error {
 		if len(args) == 0 {
@@ -138,7 +144,10 @@ func hushBuiltinMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 			}
 			return nil
 		}
-		return next(ctx, args)
+		// Non-builtin: use no-exec-bit handler directly instead of next,
+		// because the default handler checks file mode bits which are
+		// unreliable on special filesystems (e.g. Wasm, FUSE).
+		return execHandlerNoExecBit(2*time.Second)(ctx, args)
 	}
 }
 
@@ -168,3 +177,112 @@ func (c *interpConsole) Stdout() io.Writer { return c.hc.Stdout }
 func (c *interpConsole) Stderr() io.Writer { return c.hc.Stderr }
 func (c *interpConsole) Note() io.Writer   { return io.Discard }
 func (c *interpConsole) Stdin() io.Reader  { return c.hc.Stdin }
+
+// execHandlerNoExecBit returns an interp.ExecHandlerFunc that finds and executes
+// binaries without checking the executable bit (mode bits are unreliable on
+// some special filesystems like Wasm or FUSE).  Otherwise behaves like the
+// default exec handler.
+func execHandlerNoExecBit(killTimeout time.Duration) interp.ExecHandlerFunc {
+	return func(ctx context.Context, args []string) error {
+		hc := interp.HandlerCtx(ctx)
+		path, err := lookPathNoExecBit(hc.Dir, hc.Env, args[0])
+		if err != nil {
+			fmt.Fprintln(hc.Stderr, err)
+			return interp.ExitStatus(127)
+		}
+		cmd := exec.Cmd{
+			Path:   path,
+			Args:   args,
+			Env:    execEnvFromEnviron(hc.Env),
+			Dir:    hc.Dir,
+			Stdin:  hc.Stdin,
+			Stdout: hc.Stdout,
+			Stderr: hc.Stderr,
+		}
+		err = cmd.Start()
+		if err == nil {
+			stopf := context.AfterFunc(ctx, func() {
+				if killTimeout <= 0 || runtime.GOOS == "windows" {
+					_ = cmd.Process.Signal(os.Kill)
+					return
+				}
+				_ = cmd.Process.Signal(os.Interrupt)
+				time.Sleep(killTimeout)
+				_ = cmd.Process.Signal(os.Kill)
+			})
+			defer stopf()
+			err = cmd.Wait()
+		}
+		switch e := err.(type) {
+		case *exec.ExitError:
+			if status, ok := e.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				return interp.ExitStatus(128 + status.Signal())
+			}
+			return interp.ExitStatus(e.ExitCode())
+		case *exec.Error:
+			fmt.Fprintf(hc.Stderr, "%v\n", e)
+			return interp.ExitStatus(127)
+		default:
+			return e
+		}
+	}
+}
+
+// lookPathNoExecBit finds file in PATH but does NOT check the executable mode
+// bit, unlike the interp's default lookPathDir/findExecutable/checkStat chain.
+func lookPathNoExecBit(dir string, env expand.Environ, file string) (string, error) {
+	if strings.ContainsAny(file, "/\\") {
+		if !filepath.IsAbs(file) {
+			file = filepath.Join(dir, file)
+		}
+		info, err := os.Stat(file)
+		if err != nil {
+			return "", err
+		}
+		if info.IsDir() {
+			return "", fmt.Errorf("is a directory")
+		}
+		return file, nil
+	}
+	pathList := filepath.SplitList(env.Get("PATH").String())
+	if len(pathList) == 0 {
+		pathList = []string{""}
+	}
+	for _, elem := range pathList {
+		var p string
+		switch elem {
+		case "", ".":
+			p = "." + string(filepath.Separator) + file
+		default:
+			p = filepath.Join(elem, file)
+		}
+		info, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		if info.IsDir() {
+			continue
+		}
+		return p, nil
+	}
+	return "", fmt.Errorf("%q: executable file not found in $PATH", file)
+}
+
+// execEnvFromEnviron builds an os.Environ-style []string from an expand.Environ,
+// replicating the interp's internal (unexported) execEnv helper.
+func execEnvFromEnviron(env expand.Environ) []string {
+	var list []string
+	env.Each(func(name string, vr expand.Variable) bool {
+		if !vr.IsSet() {
+			return true
+		}
+		if vr.Exported && vr.Kind == expand.String {
+			list = append(list, name+"="+vr.Str)
+		}
+		return true
+	})
+	return list
+}
