@@ -29,19 +29,19 @@ func main() {
 
 	args := os.Args[1:]
 
-	cmd, stdin, output, err := newCmd(args)
+	cmd, stdin, err := newCmd(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "hu:", err)
 		os.Exit(1)
 	}
 
-	exitCode := runEditor(stdin, output)
+	exitCode := runEditor(stdin)
 	stdin.Close()
 	cmd.Wait()
 	os.Exit(exitCode)
 }
 
-func runEditor(w io.Writer, output <-chan []byte) int {
+func runEditor(w io.Writer) int {
 	m := bubbline.New()
 	m.ShowHelp = false
 	m.CursorMode = cursor.CursorStatic
@@ -85,19 +85,6 @@ func runEditor(w io.Writer, output <-chan []byte) int {
 			_, err := io.WriteString(w, val+"\n")
 			if err != nil {
 				return 0 // sh exited
-			}
-		}
-
-	drain:
-		for {
-			select {
-			case chunk, ok := <-output:
-				if !ok {
-					break drain
-				}
-				os.Stdout.Write(chunk)
-			default:
-				break drain
 			}
 		}
 	}
