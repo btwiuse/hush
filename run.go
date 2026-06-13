@@ -15,7 +15,13 @@ import (
 
 // Run runs the hush shell
 func Run() int {
-	return run(os.Stdin, os.Stdout, os.Stderr, os.Args)
+	switch filepath.Base(os.Args[0]) {
+	case "multicall":
+		log.Println("multicall test", os.Args)
+		return 0
+	default:
+		return run(os.Stdin, os.Stdout, os.Stderr, os.Args)
+	}
 }
 
 func run(in io.Reader, out, outErr io.Writer, args []string) int {
