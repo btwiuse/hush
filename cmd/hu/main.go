@@ -55,6 +55,7 @@ func runEditor(w io.Writer) int {
 
 	m.AutoComplete = hushAutoComplete
 	m.CheckInputComplete = checkInputComplete
+	m.Prompt = prompt()
 	m.KeyMap.AlwaysNewline = key.NewBinding(
 		key.WithKeys("ctrl+o", "ctrl+j"),
 		key.WithHelp("C-o/C-j", "force newline"),
@@ -154,4 +155,21 @@ func checkInputComplete(entireInput [][]rune, line, col int) bool {
 		return true
 	}
 	return currentLine[len(currentLine)-1] != '\\'
+}
+
+func prompt() string {
+	arrow := color.GreenString("➜")
+	wd, err := os.Getwd()
+	if err != nil {
+		return arrow + " $ "
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return arrow + " " + filepath.Base(wd) + " $ "
+	}
+	dir := filepath.Base(wd)
+	if wd == home {
+		dir = "~"
+	}
+	return arrow + " " + dir + " $ "
 }
