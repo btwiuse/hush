@@ -2,6 +2,7 @@ package hush
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -126,6 +127,13 @@ func hushBuiltinMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 			console := &interpConsole{hc: hc}
 			err := fn(console, args[1:]...)
 			if err != nil {
+				var es interp.ExitStatus
+				if !errors.As(err, &es) {
+					// Print the error message, then wrap so the interp runner
+					// treats it as a normal non-zero exit (not a fatal exit).
+					fmt.Fprintln(hc.Stderr, err)
+					return interp.ExitStatus(1)
+				}
 				return err
 			}
 			return nil
