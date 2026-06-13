@@ -23,6 +23,25 @@ func errcode(err error) int {
 }
 
 // Run runs the hush shell
+// NewRunner creates an interp.Runner with all hush builtins and middleware.
+func NewRunner(in io.Reader, out, outErr io.Writer) *interp.Runner {
+	runner, err := interp.New(
+		interp.StdIO(in, out, outErr),
+		interp.Interactive(true),
+		interp.ExecHandlers(hushBuiltinMiddleware),
+		interp.CallHandler(syncEnvHandler),
+	)
+	if err != nil {
+		panic(err)
+	}
+	return runner
+}
+
+// RunLine executes a single shell line. It is a public wrapper around runLine.
+func RunLine(runner *interp.Runner, line string) error {
+	return runLine(runner, nil, line)
+}
+
 func Run() int {
 	if cmd, ok := busybox.Commands[filepath.Base(os.Args[0])]; ok {
 		return autoerr(cmd(os.Args))
@@ -47,16 +66,7 @@ func run(in io.Reader, out, outErr io.Writer, args []string) int {
 		return 2
 	}
 
-	runner, err := interp.New(
-		interp.StdIO(in, out, outErr),
-		interp.Interactive(true),
-		interp.ExecHandlers(hushBuiltinMiddleware),
-		interp.CallHandler(syncEnvHandler),
-	)
-	if err != nil {
-		fmt.Fprintln(outErr, err)
-		return 1
-	}
+	runner := NewRunner(in, out, outErr)
 
 	if *command != "" {
 		reader := strings.NewReader(*command)
