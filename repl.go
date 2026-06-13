@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/btwiuse/sh/v3/interp"
@@ -42,6 +43,7 @@ func exitCodeFromError(err error) int {
 func (t *terminal) bubblineReadEvalPrintLoop() int {
 	m := bubbline.New()
 	m.ShowHelp = false
+	m.CursorMode = cursor.CursorStatic
 
 	home, err := os.UserHomeDir()
 	if err == nil {
