@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"unicode"
 )
 
 const minLen = 4
 
+// Run implements the strings command — extracts printable ASCII strings
+// from binary files using byte-level scanning.
 func Run(args []string) error {
 	if len(args) < 2 || args[1] == "-" {
 		return dump(os.Stdin, "<stdin>")
@@ -30,18 +31,18 @@ func Run(args []string) error {
 }
 
 func dump(r io.Reader, name string) error {
-	br := bufio.NewReaderSize(r, 4096)
-	var buf []rune
+	br := bufio.NewReaderSize(r, 32768)
+	var buf []byte
 	for {
-		ch, _, err := br.ReadRune()
+		b, err := br.ReadByte()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			return fmt.Errorf("%s: %v", name, err)
 		}
-		if unicode.IsPrint(ch) || ch == '\t' {
-			buf = append(buf, ch)
+		if isPrint(b) {
+			buf = append(buf, b)
 		} else {
 			if len(buf) >= minLen {
 				fmt.Println(string(buf))
@@ -53,4 +54,9 @@ func dump(r io.Reader, name string) error {
 		fmt.Println(string(buf))
 	}
 	return nil
+}
+
+// isPrint reports whether b is a printable ASCII character (0x20–0x7e) or tab.
+func isPrint(b byte) bool {
+	return b >= 0x20 && b <= 0x7e || b == '\t'
 }
