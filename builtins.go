@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -29,7 +28,6 @@ import (
 	"github.com/btwiuse/u-root/pkg/core/tar"
 	"github.com/btwiuse/u-root/pkg/core/touch"
 	"github.com/btwiuse/u-root/pkg/core/xargs"
-	"github.com/fatih/color"
 	"github.com/pkg/errors"
 )
 
@@ -79,20 +77,16 @@ func coreUtilBuiltin(name string) builtinFunc {
 func init() {
 	for k, v := range map[string]builtinFunc{
 		"cat":    cat,
-		"cd":     cd,
 		"chmod":  coreUtilBuiltin("chmod"),
 		"clear":  clear,
 		"cp":     coreUtilBuiltin("cp"),
 		"curl":   curl,
-		"echo":   echo,
 		"env":    env,
-		"exit":   exit,
 		"find":   coreUtilBuiltin("find"),
 		"ls":     coreUtilBuiltin("ls"),
 		"ln":     ln,
 		"mkdir":  coreUtilBuiltin("mkdir"),
 		"mv":     coreUtilBuiltin("mv"),
-		"pwd":    pwd,
 		"rm":     coreUtilBuiltin("rm"),
 		"rmdir":  rmdir,
 		"touch":  coreUtilBuiltin("touch"),
@@ -106,64 +100,6 @@ func init() {
 		"tar":    coreUtilBuiltin("tar"),
 	} {
 		builtins[k] = v
-	}
-}
-
-func echo(term console, args ...string) error {
-	fmt.Fprintln(term.Stdout(), strings.Join(args, " "))
-	return nil
-}
-
-func pwd(term console, args ...string) error {
-	path, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	fmt.Fprintln(term.Stdout(), path)
-	return nil
-}
-
-func cd(term console, args ...string) error {
-	switch len(args) {
-	case 0:
-		dir, err := os.UserHomeDir()
-		if err != nil {
-			return err
-		}
-		args = []string{dir}
-		fallthrough
-	case 1:
-		dir := args[0]
-		toOld := dir == "-"
-		if toOld {
-			dir = os.Getenv("OLDPWD")
-			if dir == "" {
-				return errors.New("OLDPWD not set")
-			}
-		}
-		info, err := os.Stat(dir)
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			return errors.Errorf("Not a directory: %s", dir)
-		}
-		cwd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		if err := os.Chdir(dir); err != nil {
-			return err
-		}
-		if err := os.Setenv("OLDPWD", cwd); err != nil {
-			return err
-		}
-		if toOld {
-			fmt.Fprintln(term.Note(), dir)
-		}
-		return nil
-	default:
-		return errors.New("Too many args")
 	}
 }
 
@@ -288,19 +224,6 @@ func curl(term console, args ...string) error {
 func clear(term console, args ...string) error {
 	clearWriter(term.Stdout())
 	return nil
-}
-
-func exit(term console, args ...string) error {
-	if len(args) == 0 {
-		return &exitErr{Code: 0}
-	}
-
-	exitCode, err := strconv.ParseInt(args[0], 10, 64)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(term.Stderr(), color.RedString("Exited with code %d\n"), exitCode)
-	return &exitErr{Code: int(exitCode)}
 }
 
 func env(term console, args ...string) error {
