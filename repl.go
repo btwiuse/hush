@@ -9,12 +9,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/key"
 	"github.com/fatih/color"
 	"github.com/justwasm/bubbline"
 	"github.com/justwasm/bubbline/editline"
 	pkgerrors "github.com/pkg/errors"
 )
+
+var ProgramOptions = []tea.ProgramOption{}
 
 func (t *terminal) bubblineReadEvalPrintLoop() int {
 	m := bubbline.New()
@@ -36,7 +39,7 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 	for {
 		updatePrompt(m, t.lastExitCode)
 
-		val, err := m.GetLine()
+		val, err := m.GetLine(ProgramOptions...)
 
 		if err != nil {
 			if err == io.EOF {
