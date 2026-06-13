@@ -78,8 +78,9 @@ func getStatementCompletions(commandName string, word string, start, end int) ([
 		dir = word
 		info, err := os.Stat(dir)
 		if err != nil || !info.IsDir() {
-			dir = filepath.Dir(dir)
-			filter = filepath.Base(word)
+			idx := strings.LastIndex(word, "/")
+			dir = word[:idx+1]
+			filter = word[idx+1:]
 		}
 	} else {
 		dir = "."
@@ -113,6 +114,9 @@ func getStatementCompletions(commandName string, word string, start, end int) ([
 func fileJoin(dir, name string) string {
 	if dir == "." {
 		return name
+	}
+	if strings.HasSuffix(dir, string(filepath.Separator)) {
+		return dir + name
 	}
 	return filepath.Join(dir, name)
 }
