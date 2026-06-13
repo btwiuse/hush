@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/key"
@@ -16,7 +16,10 @@ import (
 	"github.com/justwasm/bubbline/editline"
 )
 
-var ProgramOptions = []tea.ProgramOption{}
+var ProgramOptions = []tea.ProgramOption{
+	tea.WithInput(os.Stdin),
+	tea.WithOutput(os.Stdout),
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -25,23 +28,15 @@ func main() {
 	}
 
 	args := os.Args[1:]
-	cmd := exec.Command(args[0], args[1:]...)
 
-	stdinPipe, err := cmd.StdinPipe()
+	cmd, stdin, err := newCmd(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "hu:", err)
 		os.Exit(1)
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 
-	if err := cmd.Start(); err != nil {
-		fmt.Fprintln(os.Stderr, "hu:", err)
-		os.Exit(1)
-	}
-
-	exitCode := runEditor(stdinPipe)
-	stdinPipe.Close()
+	exitCode := runEditor(stdin)
+	stdin.Close()
 	cmd.Wait()
 	os.Exit(exitCode)
 }
@@ -95,8 +90,59 @@ func runEditor(w io.Writer) int {
 	}
 }
 
-func hushAutoComplete(v [][]rune, line, col int) (string, editline.Completions) {
-	return "", nil
+func hushAutoComplete(entireInput [][]rune, line, col int) (string, editline.Completions) {
+	if line < 0 || line >= len(entireInput) {
+		return "", nil
+	}
+	currentLine := entireInput[line]
+	if col > len(currentLine) {
+		col = len(currentLine)
+	}
+
+	start := col
+	for start > 0 && currentLine[start-1] != ' ' && currentLine[start-1] != '\t' {
+		start--
+	}
+	word := string(currentLine[start:col])
+
+	var dir, filter string
+	if idx := strings.LastIndex(word, "/"); idx >= 0 {
+		dir = word[:idx+1]
+		filter = word[idx+1:]
+	} else {
+		dir = "."
+		filter = word
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", nil
+	}
+
+	var names []string
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, filter) {
+			continue
+		}
+		comp := fileJoin(dir, name)
+		if e.IsDir() {
+			comp += "/"
+		}
+		names = append(names, comp)
+	}
+
+	return "", editline.SimpleWordsCompletion(names, "files", col, start, col)
+}
+
+func fileJoin(dir, name string) string {
+	if dir == "." {
+		return name
+	}
+	if strings.HasSuffix(dir, string(filepath.Separator)) {
+		return dir + name
+	}
+	return filepath.Join(dir, name)
 }
 
 func checkInputComplete(entireInput [][]rune, line, col int) bool {

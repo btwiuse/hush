@@ -9,6 +9,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.7
 	github.com/btwiuse/sh/v3 v3.14.2
 	github.com/btwiuse/u-root v0.17.0
+	github.com/creack/pty v1.1.24
 	github.com/fatih/color v1.19.0
 	github.com/justwasm/bubbline v0.0.9
 	github.com/pkg/errors v0.9.1
