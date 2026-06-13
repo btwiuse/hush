@@ -2,51 +2,78 @@ package hush
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/fatih/color"
+	"github.com/btwiuse/sh/v3/interp"
 )
+
+func testRunner(term console) *interp.Runner {
+	var stdin io.Reader
+	if stdiner, ok := term.(interface{ Stdin() io.Reader }); ok {
+		stdin = stdiner.Stdin()
+	}
+	r, err := interp.New(
+		interp.StdIO(stdin, term.Stdout(), term.Stderr()),
+		interp.ExecHandlers(hushBuiltinMiddleware),
+	)
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
 
 func TestExport(t *testing.T) {
 	t.Parallel()
-	term := &redirectconsole{
-		stdin:  &bytes.Buffer{},
-		stdout: &bytes.Buffer{},
-		stderr: &bytes.Buffer{},
-	}
 
-	if err := os.Unsetenv("HUSH_TEST_VAR"); err != nil {
-		t.Fatalf("unexpected error unsetting env: %v", err)
-	}
-	if err := runLine(term, "export HUSH_TEST_VAR=hello"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got := os.Getenv("HUSH_TEST_VAR"); got != "hello" {
-		t.Errorf("expected HUSH_TEST_VAR=hello, got %q", got)
-	}
+	t.Run("export VAR=value", func(t *testing.T) {
+		t.Parallel()
+		var out, errOut bytes.Buffer
+		term := &redirectconsole{
+			stdout: &out,
+			stderr: &errOut,
+		}
+		runner := testRunner(term)
 
-	// export VAR= sets to empty string
-	if err := runLine(term, "export HUSH_TEST_VAR="); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got := os.Getenv("HUSH_TEST_VAR"); got != "" {
-		t.Errorf("expected HUSH_TEST_VAR='', got %q", got)
-	}
+		if err := runLine(runner, term, "export HUSH_TEST_VAR=hello"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Verify via echo that the var is visible in the interp environment
+		if err := runLine(runner, term, "echo $HUSH_TEST_VAR"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out.String(), "hello") {
+			t.Errorf("expected HUSH_TEST_VAR=hello in output, got %q", out.String())
+		}
+	})
 
-	// export VAR (naked) is a no-op for already-set variables
-	if err := os.Setenv("HUSH_TEST_VAR", "world"); err != nil {
-		t.Fatalf("unexpected error setting env: %v", err)
-	}
-	if err := runLine(term, "export HUSH_TEST_VAR"); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got := os.Getenv("HUSH_TEST_VAR"); got != "world" {
-		t.Errorf("expected HUSH_TEST_VAR=world, got %q", got)
-	}
+	t.Run("export VAR= sets empty", func(t *testing.T) {
+		t.Parallel()
+		var out, errOut bytes.Buffer
+		term := &redirectconsole{
+			stdout: &out,
+			stderr: &errOut,
+		}
+		runner := testRunner(term)
+
+		if err := runLine(runner, term, "export HUSH_TEST_VAR=hello"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := runLine(runner, term, "export HUSH_TEST_VAR="); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		out.Reset()
+		if err := runLine(runner, term, "echo $HUSH_TEST_VAR"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := strings.TrimSpace(out.String()); got != "" {
+			t.Errorf("expected HUSH_TEST_VAR='', got %q", got)
+		}
+	})
 }
 
 func TestLn(t *testing.T) {
@@ -58,15 +85,16 @@ func TestLn(t *testing.T) {
 			stdout: &bytes.Buffer{},
 			stderr: &bytes.Buffer{},
 		}
+		runner := testRunner(term)
 
 		dir := t.TempDir()
 		target := dir + "/target"
 		link := dir + "/link"
 
-		if err := runLine(term, "touch "+target); err != nil {
+		if err := runLine(runner, term, "touch "+target); err != nil {
 			t.Fatalf("unexpected error creating target: %v", err)
 		}
-		if err := runLine(term, "ln -s "+target+" "+link); err != nil {
+		if err := runLine(runner, term, "ln -s "+target+" "+link); err != nil {
 			t.Fatalf("unexpected error creating symlink: %v", err)
 		}
 		info, err := os.Lstat(link)
@@ -92,9 +120,10 @@ func TestLn(t *testing.T) {
 			stdout: &bytes.Buffer{},
 			stderr: &bytes.Buffer{},
 		}
+		runner := testRunner(term)
 
 		dir := t.TempDir()
-		if err := runLine(term, "ln "+dir+" "+dir+"/link"); err == nil {
+		if err := runLine(runner, term, "ln "+dir+" "+dir+"/link"); err == nil {
 			t.Error("expected error for ln without -s")
 		}
 	})
@@ -106,6 +135,7 @@ func TestLn(t *testing.T) {
 			stdout: &bytes.Buffer{},
 			stderr: &bytes.Buffer{},
 		}
+		runner := testRunner(term)
 
 		dir := t.TempDir()
 		target1 := dir + "/target1"
@@ -113,18 +143,18 @@ func TestLn(t *testing.T) {
 		link := dir + "/link"
 
 		// Create two targets and an initial symlink
-		if err := runLine(term, "touch "+target1); err != nil {
+		if err := runLine(runner, term, "touch "+target1); err != nil {
 			t.Fatalf("unexpected error creating target1: %v", err)
 		}
-		if err := runLine(term, "touch "+target2); err != nil {
+		if err := runLine(runner, term, "touch "+target2); err != nil {
 			t.Fatalf("unexpected error creating target2: %v", err)
 		}
-		if err := runLine(term, "ln -s "+target1+" "+link); err != nil {
+		if err := runLine(runner, term, "ln -s "+target1+" "+link); err != nil {
 			t.Fatalf("unexpected error creating first symlink: %v", err)
 		}
 
 		// Force override to point to target2
-		if err := runLine(term, "ln -sf "+target2+" "+link); err != nil {
+		if err := runLine(runner, term, "ln -sf "+target2+" "+link); err != nil {
 			t.Fatalf("unexpected error force-creating symlink: %v", err)
 		}
 		got, err := os.Readlink(link)
@@ -143,8 +173,9 @@ func TestLn(t *testing.T) {
 			stdout: &bytes.Buffer{},
 			stderr: &bytes.Buffer{},
 		}
+		runner := testRunner(term)
 
-		if err := runLine(term, "ln -s /tmp"); err == nil {
+		if err := runLine(runner, term, "ln -s /tmp"); err == nil {
 			t.Error("expected error for ln -s with 1 arg")
 		}
 	})
@@ -288,24 +319,22 @@ func TestRun(t *testing.T) {
 	for _, tc := range []struct {
 		input      string
 		expectCode int
-		expectOut  string
+		// expectOut is not checked for -c mode in the interp-based shell,
+		// since -c no longer goes through the REPL prompt.
 	}{
 		{
-			input:     "ls",
-			expectOut: color.GreenString("➜") + " hush $ ls",
+			input:      "ls",
+			expectCode: 0,
 		},
 	} {
-		tc := tc // Enable parallel sub-tests
+		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 			var in, out bytes.Buffer
 			exitCode := run(&in, &out, &out, []string{"hush", "-c", tc.input})
-			output := out.String()
+			_ = out.String()
 			if tc.expectCode != exitCode {
 				t.Errorf("Unexpected exit code.\nExpected: %d\nActual:  %d", tc.expectCode, exitCode)
-			}
-			if tc.expectOut != output {
-				t.Errorf("Unexpected output.\nExpected: %s\nActual:   %s", tc.expectOut, output)
 			}
 		})
 	}

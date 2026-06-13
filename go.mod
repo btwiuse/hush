@@ -7,12 +7,12 @@ tool github.com/justwasm/boba/cmd/boba-wasm-build
 require (
 	charm.land/bubbles/v2 v2.1.0
 	charm.land/bubbletea/v2 v2.0.7
+	github.com/btwiuse/sh/v3 v3.13.1
 	github.com/btwiuse/u-root v0.17.0
 	github.com/fatih/color v1.19.0
 	github.com/justwasm/bubbline v0.0.7
 	github.com/pkg/errors v0.9.1
 	golang.org/x/term v0.41.0
-	mvdan.cc/sh/v3 v3.13.1
 )
 
 require (
@@ -44,3 +44,5 @@ require (
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 )
+
+replace github.com/btwiuse/sh/v3 => ../sh

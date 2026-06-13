@@ -1,20 +1,14 @@
 package hush
 
 import (
-	"fmt"
+	"context"
 	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
-	"time"
 
+	"github.com/btwiuse/sh/v3/interp"
+	"github.com/btwiuse/sh/v3/syntax"
 	"github.com/pkg/errors"
-	"mvdan.cc/sh/v3/syntax"
-)
-
-const (
-	homeTilde = "~"
 )
 
 type console interface {
@@ -23,37 +17,48 @@ type console interface {
 	Note() io.Writer
 }
 
-func runLine(term console, line string) error {
-	parser := syntax.NewParser()
-	var cmdErr error
-	err := parser.Stmts(strings.NewReader(line), func(stmt *syntax.Stmt) bool {
-		cmdErr = runCommand(term, line, stmt, false)
-		return cmdErr == nil
-	})
-	if err != nil {
-		return err
-	}
-	if cmdErr != nil {
-		return cmdErr
-	}
-	if parser.Incomplete() {
-		return errors.New("Incomplete command: Multi-line commands not supported")
-	}
-	return nil
+type redirectconsole struct {
+	stdin          io.Reader
+	stdout, stderr io.Writer
 }
 
+func (c *redirectconsole) Stdin() io.Reader {
+	return c.stdin
+}
+
+func (c *redirectconsole) Stdout() io.Writer {
+	return c.stdout
+}
+
+func (c *redirectconsole) Stderr() io.Writer {
+	return c.stderr
+}
+
+func (c *redirectconsole) Note() io.Writer {
+	return io.Discard
+}
+
+func getconsoleStdin(term console) io.Reader {
+	if stdiner, ok := term.(interface{ Stdin() io.Reader }); ok {
+		return stdiner.Stdin()
+	}
+	return os.Stdin
+}
+
+// evalWord evaluates syntax.WordParts into a string.
+// Kept for use by completions.go.
 func evalWord(parts []syntax.WordPart) (string, error) {
 	s := ""
 	for ix, part := range parts {
 		switch part := part.(type) {
 		case *syntax.Lit:
 			s += part.Value
-			if ix == 0 && (s == homeTilde || strings.HasPrefix(s, homeTilde+string(filepath.Separator))) {
+			if ix == 0 && (s == "~" || strings.HasPrefix(s, "~/")) {
 				homeDir, err := os.UserHomeDir()
 				if err != nil {
 					return "", err
 				}
-				s = homeDir + s[len(homeTilde):]
+				s = homeDir + s[1:]
 			}
 		case *syntax.SglQuoted:
 			if part.Dollar {
@@ -84,216 +89,59 @@ func evalWord(parts []syntax.WordPart) (string, error) {
 	return s, nil
 }
 
-func runCommand(term console, line string, stmt *syntax.Stmt, isPipe bool) error {
-	switch node := stmt.Cmd.(type) {
-	case *syntax.CallExpr:
-		return runCallExpr(term, stmt, node, isPipe)
-	case *syntax.BinaryCmd:
-		switch node.Op {
-		case syntax.AndStmt: // &&
-			err := runCommand(term, line, node.X, false)
-			if err != nil {
-				return err
-			}
-			return runCommand(term, line, node.Y, false)
-		case syntax.OrStmt: // ||
-			err := runCommand(term, line, node.X, false)
-			if err == nil {
-				return nil
-			}
-			return runCommand(term, line, node.Y, false)
-		case syntax.Pipe: // |
-			r, w, err := os.Pipe()
-			if err != nil {
-				return err
-			}
-			leftTerm := &redirectconsole{
-				stdin:  getconsoleStdin(term),
-				stdout: w,
-				stderr: term.Stderr(),
-			}
-			rightTerm := &redirectconsole{
-				stdin:  r,
-				stdout: term.Stdout(),
-				stderr: term.Stderr(),
-			}
-			errChan := make(chan error, 1)
-			go func() {
-				errChan <- runCommand(rightTerm, line, node.Y, true)
-			}()
-			err = runCommand(leftTerm, line, node.X, false)
-			if err != nil {
-				return err
-			}
-			w.Close()
-			return <-errChan
-		case syntax.PipeAll: // |&
-			r, w, err := os.Pipe()
-			if err != nil {
-				return err
-			}
-			leftTerm := &redirectconsole{
-				stdin:  getconsoleStdin(term),
-				stdout: w,
-				stderr: w,
-			}
-			rightTerm := &redirectconsole{
-				stdin:  r,
-				stdout: term.Stdout(),
-				stderr: term.Stderr(),
-			}
-			errChan := make(chan error, 1)
-			go func() {
-				errChan <- runCommand(rightTerm, line, node.Y, true)
-			}()
-			err = runCommand(leftTerm, line, node.X, false)
-			if err != nil {
-				return err
-			}
-			return <-errChan
-		default:
-			return errors.Errorf("Unknown binary operator: %v", node.Op)
-		}
-
-	case *syntax.TimeClause:
-		start := time.Now()
-		var err error
-		if node.Stmt != nil {
-			err = runCommand(term, line, node.Stmt, false)
-		}
-		duration := time.Since(start)
-		fmt.Fprint(term.Stdout(), "\r\n")
-		if node.Stmt != nil {
-			fmt.Fprintf(term.Stdout(), "%s\t", formatStmt(line, node.Stmt))
-		}
-		fmt.Fprintf(term.Stdout(), "%v total\n", duration)
-		return err
-
-	case *syntax.DeclClause:
-		return runDeclClause(node)
-
-	case *syntax.IfClause, *syntax.WhileClause, *syntax.ForClause, *syntax.CaseClause, *syntax.Block, *syntax.Subshell, *syntax.FuncDecl, *syntax.ArithmCmd, *syntax.TestClause, *syntax.LetClause, *syntax.CoprocClause:
-		return errors.Errorf("Unimplemented statement type: %T %v", stmt.Cmd, stmt.Cmd)
-	default:
-		return errors.Errorf("Unknown statement type: %T %v", stmt.Cmd, stmt.Cmd)
-	}
-}
-
-func runDeclClause(node *syntax.DeclClause) error {
-	if node.Variant.Value != "export" {
-		return errors.Errorf("Unimplemented declare variant: %s", node.Variant.Value)
-	}
-	for _, assign := range node.Args {
-		if assign.Name == nil {
-			return errors.New("export: dynamic variable names not supported")
-		}
-		name := assign.Name.Value
-		if assign.Naked {
-			// export VAR — re-export an already-set variable (no-op if already in env)
-			continue
-		}
-		if assign.Value == nil {
-			// export VAR= — set to empty string
-			if err := os.Setenv(name, ""); err != nil {
-				return err
-			}
-			continue
-		}
-		value, err := evalWord(assign.Value.Parts)
-		if err != nil {
-			return err
-		}
-		if err := os.Setenv(name, value); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func formatStmt(source string, s *syntax.Stmt) string {
 	return source[s.Pos().Offset():s.End().Offset()]
 }
 
-type cmdOptions struct {
-	Background  bool
-	Pipe        bool
-	EnvOverride []string
+// runLine parses a shell line and executes it via the interp.Runner.
+func runLine(runner *interp.Runner, term console, line string) error {
+	parser := syntax.NewParser()
+	var cmdErr error
+	ctx := context.Background()
+
+	err := parser.Stmts(strings.NewReader(line), func(stmt *syntax.Stmt) bool {
+		cmdErr = runner.Run(ctx, stmt)
+		return cmdErr == nil
+	})
+	if err != nil {
+		return err
+	}
+	if cmdErr != nil {
+		return cmdErr
+	}
+	if parser.Incomplete() {
+		return errors.New("Incomplete command: Multi-line commands not supported")
+	}
+	return nil
 }
 
-func runCmd(cmd *exec.Cmd, options cmdOptions) error {
-	// ensure files are all attached by default. these are assumed to be set up already
-	if cmd.Stdin == nil || cmd.Stdout == nil || cmd.Stderr == nil {
-		panic("Standard files not set up")
-	}
-
-	args := []string{cmd.Path}
-	if len(cmd.Args) > 0 {
-		args = cmd.Args
-	}
-	commandName, args := args[0], args[1:]
-
-	builtin, isBuiltin := builtins[commandName]
-	if options.Pipe || !isBuiltin {
-		if options.Background {
-			return cmd.Start()
+// hushBuiltinMiddleware is an interp.ExecHandlers middleware that intercepts
+// commands registered in the hush builtins map and executes them.
+func hushBuiltinMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
+	return func(ctx context.Context, args []string) error {
+		if len(args) == 0 {
+			return next(ctx, args)
 		}
-		if !options.Pipe {
-			return runForegroundExternal(cmd)
+		name := args[0]
+		if fn, ok := builtins[name]; ok {
+			hc := interp.HandlerCtx(ctx)
+			console := &interpConsole{hc: hc}
+			err := fn(console, args[1:]...)
+			if err != nil {
+				return err
+			}
+			return nil
 		}
-		return cmd.Run()
+		return next(ctx, args)
 	}
-
-	var oldKV, unsetKV []string
-	// override env for builtin — only save/restore explicitly overridden vars
-	for _, pair := range options.EnvOverride {
-		key, value := splitKeyValue(pair)
-		if oldValue, isSet := os.LookupEnv(key); isSet {
-			oldKV = append(oldKV, key+"="+oldValue)
-		} else {
-			unsetKV = append(unsetKV, key)
-		}
-		os.Setenv(key, value)
-	}
-	err := builtin(&redirectconsole{
-		stdin:  cmd.Stdin,
-		stdout: cmd.Stdout,
-		stderr: cmd.Stderr,
-	}, args...)
-	// restore env
-	for _, pair := range oldKV {
-		key, value := splitKeyValue(pair)
-		os.Setenv(key, value)
-	}
-	for _, key := range unsetKV {
-		os.Unsetenv(key)
-	}
-	return errors.Wrap(err, commandName)
 }
 
-type redirectconsole struct {
-	stdin          io.Reader
-	stdout, stderr io.Writer
+// interpConsole adapts interp.HandlerContext to the hush console interface.
+type interpConsole struct {
+	hc interp.HandlerContext
 }
 
-func (c *redirectconsole) Stdin() io.Reader {
-	return c.stdin
-}
-
-func (c *redirectconsole) Stdout() io.Writer {
-	return c.stdout
-}
-
-func (c *redirectconsole) Stderr() io.Writer {
-	return c.stderr
-}
-
-func (c *redirectconsole) Note() io.Writer {
-	return io.Discard
-}
-
-func getconsoleStdin(term console) io.Reader {
-	if stdiner, ok := term.(interface{ Stdin() io.Reader }); ok {
-		return stdiner.Stdin()
-	}
-	return os.Stdin
-}
+func (c *interpConsole) Stdout() io.Writer { return c.hc.Stdout }
+func (c *interpConsole) Stderr() io.Writer { return c.hc.Stderr }
+func (c *interpConsole) Note() io.Writer   { return io.Discard }
+func (c *interpConsole) Stdin() io.Reader  { return c.hc.Stdin }

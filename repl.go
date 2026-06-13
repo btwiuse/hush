@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"github.com/btwiuse/sh/v3/interp"
 	"github.com/fatih/color"
 	"github.com/justwasm/bubbline"
 	"github.com/justwasm/bubbline/editline"
-	pkgerrors "github.com/pkg/errors"
 )
 
 var ProgramOptions = []tea.ProgramOption{}
@@ -64,13 +64,13 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 		}
 
 		if val != "" {
-			err = runLine(t, val)
+			err = runLine(t.runner, t, val)
 			t.lastExitCode = 0
 			if err != nil {
-				if exitErr, ok := pkgerrors.Cause(err).(*exitErr); ok {
-					return exitErr.Code
-				}
-				if isKilledBySignal(err) {
+				var es interp.ExitStatus
+				if errors.As(err, &es) {
+					t.lastExitCode = int(es)
+				} else if isKilledBySignal(err) {
 					fmt.Println("^C")
 					t.lastExitCode = 130
 				} else {
@@ -80,6 +80,9 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 						t.lastExitCode = exitErr.ExitCode()
 					}
 				}
+			}
+			if t.runner.Exited() {
+				return t.lastExitCode
 			}
 		}
 	}

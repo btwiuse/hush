@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"mvdan.cc/sh/v3/syntax"
+	"github.com/btwiuse/sh/v3/syntax"
 )
 
 type completion struct {

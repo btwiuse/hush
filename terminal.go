@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/btwiuse/sh/v3/interp"
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 )
@@ -43,12 +44,14 @@ type terminal struct {
 	history      *history
 
 	out, outErr io.Writer
+	runner      *interp.Runner
 }
 
-func newTerminal(out, outErr io.Writer) *terminal {
+func newTerminal(out, outErr io.Writer, runner *interp.Runner) *terminal {
 	term := &terminal{
 		out:    out,
 		outErr: outErr,
+		runner: runner,
 	}
 	history, err := newHistory()
 	if err != nil {
@@ -161,14 +164,13 @@ func (t *terminal) ReadEvalPrint(reader io.RuneReader) error {
 		command := string(t.line)
 		t.line = nil
 		t.cursor = 0
-		err = runLine(t, command)
+		err = runLine(t.runner, t, command)
 		t.lastExitCode = 0
 		if err != nil {
-			// Propagate exitErr to the REPL loop so exit actually works.
-			if exitErr, ok := errors.Cause(err).(*exitErr); ok {
-				return exitErr
-			}
-			if isKilledBySignal(err) {
+			var es interp.ExitStatus
+			if errors.As(err, &es) {
+				t.lastExitCode = int(es)
+			} else if isKilledBySignal(err) {
 				t.Print("^C\n")
 				t.lastExitCode = 130
 			} else {
@@ -178,6 +180,9 @@ func (t *terminal) ReadEvalPrint(reader io.RuneReader) error {
 					t.lastExitCode = exitErr.ExitCode()
 				}
 			}
+		}
+		if t.runner.Exited() {
+			return &exitErr{Code: t.lastExitCode}
 		}
 		err := t.history.Push(command)
 		if err != nil {
@@ -222,9 +227,9 @@ func (t *terminal) ReadEvalPrint(reader io.RuneReader) error {
 			for _, completion := range completions {
 				t.Print(completion.Completion, "\t")
 			}
-			t.CursorUpN(1)                                    // back to prompt line
-			t.Printf("\r%s%s", prompt(t), string(t.line))     // redraw prompt + line
-			t.CursorLeftN(len(t.line) - t.cursor)              // restore cursor position
+			t.CursorUpN(1)                                // back to prompt line
+			t.Printf("\r%s%s", prompt(t), string(t.line)) // redraw prompt + line
+			t.CursorLeftN(len(t.line) - t.cursor)         // restore cursor position
 		}
 	default:
 		prefix, suffix := splitRunes(t.line, t.cursor)

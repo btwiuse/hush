@@ -321,24 +321,11 @@ func env(term console, args ...string) error {
 		return nil
 	}
 
-	return runWithEnv(term, kv, args...)
-}
-
-func splitKeyValue(kv string) (key, value string) {
-	const equals = "="
-	tokens := strings.SplitN(kv, equals, 2)
-	if len(tokens) < 2 {
-		return strings.Join(tokens, equals), ""
-	}
-	return tokens[0], strings.Join(tokens[1:], equals)
-}
-
-func runWithEnv(term console, env []string, args ...string) error {
 	cmd := exec.Command(args[0], args[1:]...) // nolint:gosec
 	cmd.Stdout = term.Stdout()
 	cmd.Stderr = term.Stderr()
-	cmd.Env = append(os.Environ(), env...)
-	return runCmd(cmd, cmdOptions{EnvOverride: env})
+	cmd.Env = append(os.Environ(), kv...)
+	return cmd.Run()
 }
 
 func ln(term console, args ...string) error {
