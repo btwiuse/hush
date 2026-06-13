@@ -107,9 +107,9 @@ func RunLine(runner, line) error                 // 执行单行
 
 ### 4. 输出与 bubbline 显示交错
 
-`sh` 的 stdout/stderr 直通终端，不经 `hu` 缓冲。若命令输出出现时 bubbline 正在显示提示符，输出会打印在当前光标位置，bubbline 在下一次按键时重绘。视觉上偶有闪烁。
+`sh` 的 stdout/stderr 通过 PTY 直通终端（`io.Copy(os.Stdout, ptmx)`）。若命令输出出现时 bubbline 正在显示提示符，输出会打印在当前光标位置，bubbline 在下一次按键时重绘。视觉上偶有闪烁。
 
-理想方案：捕获 `sh` 的输出，通过 bubbletea 的 `tea.Println()` 在 TUI 上方打印。
+根本原因：`GetLine` 内部阻塞在 `p.Run()`，无法在 TUI 运行期间处理 PTY 输出。channel 方案会延迟输出到下一次 `GetLine` 调用，需要多按一次回车。当前直通方案是可接受的折中。
 
 ### 5. 多行构造无视觉提示
 
