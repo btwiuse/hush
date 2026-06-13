@@ -54,11 +54,11 @@ func getCompletionsErr(line string, cursor int) ([]completion, error) {
 		return nil, err
 	}
 
-	commandWordStr, err := evalWord(commandWord.Parts)
+	commandWordStr, err := expandWord(commandWord)
 	if err != nil {
 		return nil, err
 	}
-	cursorWordStr, err := evalWord(cursorWord.Parts)
+	cursorWordStr, err := expandWord(cursorWord)
 	if err != nil {
 		return nil, err
 	}

@@ -19,6 +19,26 @@ import (
 
 var ProgramOptions = []tea.ProgramOption{}
 
+// exitCodeFromError extracts the exit code from an error returned by
+// runner.Run/runLine. Returns 0 on nil.
+func exitCodeFromError(err error) int {
+	if err == nil {
+		return 0
+	}
+	var es interp.ExitStatus
+	if errors.As(err, &es) {
+		return int(es)
+	}
+	if isKilledBySignal(err) {
+		return 130
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return 1
+}
+
 func (t *terminal) bubblineReadEvalPrintLoop() int {
 	m := bubbline.New()
 	m.ShowHelp = false
@@ -37,8 +57,9 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 		key.WithHelp("C-o/C-j", "force newline"),
 	)
 
+	var lastExitCode int
 	for {
-		updatePrompt(m, t.lastExitCode)
+		updatePrompt(m, lastExitCode)
 
 		val, err := m.GetLine(ProgramOptions...)
 
@@ -48,14 +69,14 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 			}
 			if errors.Is(err, bubbline.ErrInterrupted) {
 				fmt.Println("^C")
-				t.lastExitCode = 1
+				lastExitCode = 1
 				continue
 			}
 			if errors.Is(err, bubbline.ErrTerminated) {
 				return 0
 			}
 			t.ErrPrint(color.RedString(err.Error()) + "\n")
-			t.lastExitCode = 1
+			lastExitCode = 1
 			continue
 		}
 
@@ -65,24 +86,19 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 
 		if val != "" {
 			err = runLine(t.runner, t, val)
-			t.lastExitCode = 0
+			lastExitCode = exitCodeFromError(err)
 			if err != nil {
 				var es interp.ExitStatus
 				if errors.As(err, &es) {
-					t.lastExitCode = int(es)
+					// ExitStatus is the normal non-zero exit path; already captured.
 				} else if isKilledBySignal(err) {
 					fmt.Println("^C")
-					t.lastExitCode = 130
 				} else {
 					t.ErrPrint(color.RedString(err.Error()) + "\n")
-					t.lastExitCode = 1
-					if exitErr, ok := err.(*exec.ExitError); ok {
-						t.lastExitCode = exitErr.ExitCode()
-					}
 				}
 			}
 			if t.runner.Exited() {
-				return t.lastExitCode
+				return lastExitCode
 			}
 		}
 	}

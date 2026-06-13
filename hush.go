@@ -31,6 +31,7 @@ func run(in io.Reader, out, outErr io.Writer, args []string) int {
 		interp.StdIO(in, out, outErr),
 		interp.Interactive(true),
 		interp.ExecHandlers(hushBuiltinMiddleware),
+		interp.CallHandler(syncEnvHandler),
 	)
 	if err != nil {
 		fmt.Fprintln(outErr, err)

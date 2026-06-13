@@ -19,21 +19,10 @@ var (
 	promptTemplate = template.Must(template.New("").Parse(promptTemplateStr))
 )
 
-func prompt(term *terminal) string {
-	s, err := promptErr(term)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to render prompt: ", err)
-	}
-	return s
-}
-
-func promptErr(term *terminal) (string, error) {
+func promptErr(lastExitCode int) (string, error) {
 	var buf bytes.Buffer
-	data, err := newPromptData(term)
-	if err != nil {
-		return "", err
-	}
-	err = promptTemplate.Execute(&buf, data)
+	data := newPromptData(lastExitCode)
+	err := promptTemplate.Execute(&buf, data)
 	return buf.String(), err
 }
 
@@ -42,34 +31,34 @@ type promptData struct {
 	CurDirName string
 }
 
-func newPromptData(term *terminal) (data *promptData, err error) {
+func newPromptData(lastExitCode int) *promptData {
 	const rcArrow = "➜"
-	data = &promptData{
+	data := &promptData{
 		RCArrow: color.GreenString(rcArrow),
 	}
 
 	wd, err := os.Getwd()
 	if err != nil {
-		return
+		return data
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return
+		return data
 	}
 	data.CurDirName = filepath.Base(wd)
 	if wd == home {
 		data.CurDirName = "~"
 	}
 
-	if term.lastExitCode != 0 {
+	if lastExitCode != 0 {
 		data.RCArrow = color.RedString(rcArrow)
 	}
 
-	return
+	return data
 }
 
 func updatePrompt(m *bubbline.Editor, lastExitCode int) {
-	s, err := promptErr(&terminal{lastExitCode: lastExitCode})
+	s, err := promptErr(lastExitCode)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed to render prompt: ", err)
 	}

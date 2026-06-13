@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/btwiuse/sh/v3/expand"
 	"github.com/btwiuse/sh/v3/interp"
 	"github.com/btwiuse/sh/v3/syntax"
 	"github.com/pkg/errors"
@@ -47,48 +48,21 @@ func getconsoleStdin(term console) io.Reader {
 	return os.Stdin
 }
 
-// evalWord evaluates syntax.WordParts into a string.
-// Kept for use by completions.go.
-func evalWord(parts []syntax.WordPart) (string, error) {
-	s := ""
-	for ix, part := range parts {
-		switch part := part.(type) {
-		case *syntax.Lit:
-			s += part.Value
-			if ix == 0 && (s == "~" || strings.HasPrefix(s, "~/")) {
-				homeDir, err := os.UserHomeDir()
-				if err != nil {
-					return "", err
-				}
-				s = homeDir + s[1:]
-			}
-		case *syntax.SglQuoted:
-			if part.Dollar {
-				return "", errors.Errorf("Dollar single-quotes not supported: %v", part)
-			}
-			s += part.Value
-		case *syntax.DblQuoted:
-			if part.Dollar {
-				return "", errors.Errorf("Dollar single-quotes not supported: %v", part)
-			}
-			dblQuoted, err := evalWord(part.Parts)
-			if err != nil {
-				return "", err
-			}
-			s += dblQuoted
-		case *syntax.ParamExp:
-			name := part.Param.Value
-			if part.Excl || part.Length || part.Width || part.Index != nil || part.Slice != nil || part.Repl != nil || part.Names != 0 || part.Exp != nil {
-				return "", errors.Errorf("Variable expansion type not supported: %s %v", name, part)
-			}
-			s += os.Getenv(name)
-		case *syntax.CmdSubst, *syntax.ArithmExp, *syntax.ProcSubst, *syntax.ExtGlob:
-			return "", errors.Errorf("Unrecognized word part type: %T %v", part, part)
-		default:
-			return "", errors.Errorf("Unrecognized word part type: %T %v", part, part)
-		}
+// expandWord evaluates a syntax.Word into a string using the full
+// shell expansion pipeline (param expansion, tilde expansion, arithmetic,
+// command substitution, etc.) via the expand package.
+// Used by completions.go for tab completion.
+func expandWord(w *syntax.Word) (string, error) {
+	cfg := &expand.Config{
+		Env: expand.ListEnviron(os.Environ()...),
+		CmdSubst: func(io.Writer, *syntax.CmdSubst) error {
+			return nil // skip command substitution, return empty
+		},
+		ProcSubst: func(*syntax.ProcSubst) (string, error) {
+			return "", nil // skip process substitution, return empty
+		},
 	}
-	return s, nil
+	return expand.Literal(cfg, w)
 }
 
 func formatStmt(source string, s *syntax.Stmt) string {
@@ -132,6 +106,8 @@ func runLine(runner *interp.Runner, term console, line string) error {
 
 // hushBuiltinMiddleware is an interp.ExecHandlers middleware that intercepts
 // commands registered in the hush builtins map and executes them.
+// It also syncs interp's exported env vars to os.Setenv before running
+// hush builtins, so os.Environ() reflects shell exports.
 func hushBuiltinMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 	return func(ctx context.Context, args []string) error {
 		if len(args) == 0 {
@@ -140,6 +116,13 @@ func hushBuiltinMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 		name := args[0]
 		if fn, ok := builtins[name]; ok {
 			hc := interp.HandlerCtx(ctx)
+			// Sync interp env to os so hush builtins (e.g. env) see exports.
+			hc.Env.Each(func(name string, vr expand.Variable) bool {
+				if vr.IsSet() && vr.Exported && vr.Kind == expand.String {
+					os.Setenv(name, vr.Str)
+				}
+				return true
+			})
 			console := &interpConsole{hc: hc}
 			err := fn(console, args[1:]...)
 			if err != nil {
@@ -149,6 +132,23 @@ func hushBuiltinMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 		}
 		return next(ctx, args)
 	}
+}
+
+// syncEnvHandler syncs interp's exported string environment variables
+// to os.Setenv, so that hush code using os.Getenv (e.g. the env builtin)
+// sees the same environment as the shell.
+// Registered as a CallHandler, it fires on every command — after the
+// previous command's side effects (like export) have been applied to
+// interp's internal overlay.
+func syncEnvHandler(ctx context.Context, args []string) ([]string, error) {
+	hc := interp.HandlerCtx(ctx)
+	hc.Env.Each(func(name string, vr expand.Variable) bool {
+		if vr.IsSet() && vr.Exported && vr.Kind == expand.String {
+			os.Setenv(name, vr.Str)
+		}
+		return true
+	})
+	return args, nil
 }
 
 // interpConsole adapts interp.HandlerContext to the hush console interface.

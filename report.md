@@ -78,30 +78,37 @@
 
 ## 剩余缺陷与限制
 
-### 1. `evalWord` 重复实现
-`command.go` 中保留了旧的 `evalWord` 函数，仅供 `completions.go` 的 tab 补全使用。它不支持 `$()`、`$((`、进程替换等扩展类型，遇到时会返回错误。
+### 1. `evalWord` 重复实现（已修复）
 
-**影响**：补全功能受限，但不影响 interp 执行。
+旧版 `evalWord` 函数已替换为 `expandWord`，使用 interp 的 `expand.Literal` 模块进行完整的 shell 展开（参数展开、算术扩展、`$()` 命令替换、进程替换等均被支持）。
 
-**建议**：可将补全改为使用 interp 的 expand 模块，或保持现状。
+**影响**：无。补全现在使用和 interp 相同的展开引擎。
 
-### 2. `export` 环境变量隔离
-interp 通过内部 `writeEnv` 管理环境变量，不调用 `os.Setenv()`。因此 `export VAR=val` 后，`os.Getenv("VAR")` 看不到该变量。
+### 2. `export` 环境变量隔离（已修复）
 
-**影响**：在 REPL 中不影响功能（interp 会将正确环境传给子进程）。但如果外部代码依赖 `os.Getenv` 查看 shell 设置的变量，会失败。
+interp 通过内部 `writeEnv` 管理环境变量，不调用 `os.Setenv()`。现在在 `hushBuiltinMiddleware` 中，每次执行 hush builtin 前会将 interp 中所有 `Exported` 的 string 类型变量同步到 `os.Setenv`，同时 `CallHandler` 也会在所有命令前额外同步。
+
+**影响**：无。`os.Getenv` 和 `os.Environ()` 现在能正确反映 shell 中的 `export`。
 
 ### 3. Wasm 兼容性未验证
 `github.com/btwiuse/sh/v3` fork 声称支持 Wasm，但未在 `GOOS=js GOARCH=wasm` 下测试。
 
 **影响**：可能无法正常工作。
 
-### 4. 提示符中的 `lastExitCode` 可能漂移
-hush 的 `terminal.lastExitCode` 和 interp 的 `runner.lastExit` 都跟踪退出码。目前 REPL 手动同步两者，但存在不同步的风险。
+### 4. 提示符中的 `lastExitCode` 可能漂移（已修复）
 
-**建议**：REPL 可以直接从 runner 读取退出码，消除手动跟踪。
+~~hush 的 `terminal.lastExitCode` 和 interp 的 `runner.lastExit` 都跟踪退出码。目前 REPL 手动同步两者，但存在不同步的风险。~~
+
+已移除 `terminal.lastExitCode` 字段。退出码现在通过 `exitCodeFromError` 直接从 `runLine` 返回的 `interp.ExitStatus` 错误中提取，作为局部变量在 REPL 循环中传递。消除了手动同步的风险。
+
+**影响**：无。
 
 ### 5. 无 rc file 支持
 没有 `~/.hushrc` 启动脚本机制（与迁移前一致）。
+
+**影响**：用户无法在启动时自动加载别名、环境变量或自定义配置。
+
+**建议**：REPL 启动时可检查并 source `~/.hushrc` 文件。
 
 ## 总结
 

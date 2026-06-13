@@ -19,8 +19,7 @@ type terminal struct {
 	line   []rune
 	cursor int
 	// command state
-	lastExitCode int
-	history      *history
+	history *history
 
 	out, outErr io.Writer
 	runner      *interp.Runner
