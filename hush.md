@@ -1,0 +1,129 @@
+# hush — 架构解耦记录
+
+## 一开始
+
+`./cmd/hush/main.go` → `package hush` 承担了两件事：
+
+1. **Shell** — 命令解析、执行、内置命令、busybox
+2. **rlwrap** — 行编辑（bubbline）、历史、补全、终端 raw mode、光标管理
+
+两者完全耦合在同一个进程里：
+
+```
+hush Run()
+  └─ run()
+       ├─ -c / 脚本文件 → runner.Run() 直接执行
+       └─ REPL →
+            newTerminal()
+            └─ bubblineReadEvalPrintLoop()
+                 ├─ bubbline 行编辑、历史、补全
+                 ├─ updatePrompt() 渲染 ➜ dir $ 提示
+                 └─ runLine() → runner.Run() 执行
+```
+
+所有代码在同一个 `package hush` 里，`terminal.go`、`repl.go`、`prompt.go`、`completions.go` 互相引用，无法独立使用。
+
+## 交付成果（拆分后）
+
+两个独立 binary，通过 stdin pipe 组合：
+
+```
+hu (行编程序)     sh (裸 REPL)
+─────────────     ──────────
+bubbline 行编辑    parser.InteractiveSeq
+历史、补全          $ / > 提示（终端模式）
+multi-line         无提示（pipe 模式）
+      │                │
+      │   stdin pipe    │
+      ├────────────────►│
+      │   stdout/stderr │
+      │◄────── 直通 ────┤
+```
+
+### cmd/sh
+
+参考 [gosh](https://github.com/btwiuse/sh/tree/master/cmd/gosh) 实现，三种模式：
+
+| 模式 | 触发条件 | 行为 |
+|------|---------|------|
+| `-c` | `-c 'cmd'` | 解析执行后退出 |
+| 脚本 | 文件名参数 | 依次执行脚本后退出 |
+| 终端 | `term.IsTerminal(stdin)` | `InteractiveSeq` + `$` / `>` 提示 |
+| Pipe | stdin 是 pipe | `InteractiveSeq` 静默执行，无提示 |
+
+### cmd/hu
+
+基于 bubbline 的行编程序，功能：
+
+- 行编辑（Emacs 键绑定）
+- 历史记录（`~/.history`，自动保存）
+- 多行输入（`\` 续行）
+- Ctrl+D / Ctrl+C 处理
+
+组合方式：
+
+```sh
+# 等同于原来 ./cmd/hush
+./hu ./sh
+
+# hu 可以搭配任意 stdin 驱动的程序使用
+./hu python3
+./hu lua
+./hu bc
+```
+
+### package hush 新增公开 API
+
+```go
+func NewRunner(in, out, outErr) *interp.Runner  // 创建 runner
+func RunLine(runner, line) error                 // 执行单行
+```
+
+`cmd/sh` 和旧的 `cmd/hush` 共享同一套执行逻辑。
+
+## 不足之处
+
+### ~~1. 无 PTY，信号处理不完整~~
+
+已解决。使用 `github.com/creack/pty` 通过 PTY 连接 `hu` 和 `sh`，sh 获得真正的终端。
+
+原问题描述：
+
+- **Ctrl+C 竞争**：bubbletea 安装了自己的 SIGINT handler。当用户按 Ctrl+C 时，SIGINT 发往前台进程组（hu + sh + 子进程）。bubbletea 捕获信号处理，`sh` 和子进程也收到信号。多数情况下行为正确，但在时序窗口内 bubbletea 可能先处理信号，干扰 `sh` 的执行。
+- **无作业控制**：`sh` 在 pipe 模式下运行，`interp` 的作业控制不可用。
+- **无法检测 `sh` 的退出**：`hu` 通过 write EPIPE 被动发现 `sh` 已退出，而非主动 wait。
+
+### 2. 提示符不完整
+
+原 `hush` 有彩色 `➜ dir $` 提示符，退出码非零时箭头变红。`hu` 使用 bubbline 默认提示符，丢失了：
+
+- 当前目录显示
+- 退出码状态指示
+- 自定义模板渲染
+
+### ~~3. Tab 补全未实现~~
+
+已解决。`hu` 的 `hushAutoComplete` 实现了基于文件系统的路径补全：找到光标所在单词，按 `/` 分割目录和前缀，列出匹配项。目录带 `/` 后缀。
+
+### 4. 输出与 bubbline 显示交错
+
+`sh` 的 stdout/stderr 直通终端，不经 `hu` 缓冲。若命令输出出现时 bubbline 正在显示提示符，输出会打印在当前光标位置，bubbline 在下一次按键时重绘。视觉上偶有闪烁。
+
+理想方案：捕获 `sh` 的输出，通过 bubbletea 的 `tea.Println()` 在 TUI 上方打印。
+
+### 5. 多行构造无视觉提示
+
+`checkInputComplete` 只识别反斜杠续行（`\`），不识别 shell 关键字：
+
+```sh
+# 以下场景在 sh 侧可以正确跨行执行
+if true           # ← hu 立即提交给 sh
+then echo ok      # ← hu 提交，sh 仍等待 fi
+fi                # ← sh 终于完成并执行
+```
+
+但用户看不到 `>` 续行提示。bubbline 每次显示的都是主提示符，用户可能误认为上一个命令已执行完毕。
+
+### 6. Windows / js/wasm 支持
+
+PTY 通过 build tag 分离：native 使用 `creack/pty`，js/wasm 回退到 `os.Pipe()`。
