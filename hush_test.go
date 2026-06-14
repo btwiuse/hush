@@ -2,7 +2,6 @@ package hush
 
 import (
 	"bytes"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,12 +12,8 @@ import (
 )
 
 func testRunner(term console) *interp.Runner {
-	var stdin io.Reader
-	if stdiner, ok := term.(interface{ Stdin() io.Reader }); ok {
-		stdin = stdiner.Stdin()
-	}
 	r, err := interp.New(
-		interp.StdIO(stdin, term.Stdout(), term.Stderr()),
+		interp.StdIO(term.Stdin(), term.Stdout(), term.Stderr()),
 		interp.ExecHandlers(hushBuiltinMiddleware),
 	)
 	if err != nil {
@@ -33,7 +28,7 @@ func TestExport(t *testing.T) {
 	t.Run("export VAR=value", func(t *testing.T) {
 		t.Parallel()
 		var out, errOut bytes.Buffer
-		term := &redirectconsole{
+		term := console{
 			stdout: &out,
 			stderr: &errOut,
 		}
@@ -54,7 +49,7 @@ func TestExport(t *testing.T) {
 	t.Run("export VAR= sets empty", func(t *testing.T) {
 		t.Parallel()
 		var out, errOut bytes.Buffer
-		term := &redirectconsole{
+		term := console{
 			stdout: &out,
 			stderr: &errOut,
 		}
@@ -80,7 +75,7 @@ func TestLn(t *testing.T) {
 	t.Parallel()
 	t.Run("ln -s creates symlink", func(t *testing.T) {
 		t.Parallel()
-		term := &redirectconsole{
+		term := console{
 			stdin:  &bytes.Buffer{},
 			stdout: &bytes.Buffer{},
 			stderr: &bytes.Buffer{},
@@ -115,7 +110,7 @@ func TestLn(t *testing.T) {
 
 	t.Run("ln without -s returns error", func(t *testing.T) {
 		t.Parallel()
-		term := &redirectconsole{
+		term := console{
 			stdin:  &bytes.Buffer{},
 			stdout: &bytes.Buffer{},
 			stderr: &bytes.Buffer{},
@@ -130,7 +125,7 @@ func TestLn(t *testing.T) {
 
 	t.Run("ln -sf replaces existing file", func(t *testing.T) {
 		t.Parallel()
-		term := &redirectconsole{
+		term := console{
 			stdin:  &bytes.Buffer{},
 			stdout: &bytes.Buffer{},
 			stderr: &bytes.Buffer{},
@@ -168,7 +163,7 @@ func TestLn(t *testing.T) {
 
 	t.Run("ln -s with 1 arg returns error", func(t *testing.T) {
 		t.Parallel()
-		term := &redirectconsole{
+		term := console{
 			stdin:  &bytes.Buffer{},
 			stdout: &bytes.Buffer{},
 			stderr: &bytes.Buffer{},
@@ -192,7 +187,7 @@ func TestCurl(t *testing.T) {
 		defer ts.Close()
 
 		var out bytes.Buffer
-		term := &redirectconsole{
+		term := console{
 			stdout: &out,
 			stderr: &bytes.Buffer{},
 		}
@@ -212,7 +207,7 @@ func TestCurl(t *testing.T) {
 		defer ts.Close()
 
 		var out bytes.Buffer
-		term := &redirectconsole{
+		term := console{
 			stdout: &out,
 			stderr: &bytes.Buffer{},
 		}
@@ -226,7 +221,7 @@ func TestCurl(t *testing.T) {
 
 	t.Run("curl with no URL", func(t *testing.T) {
 		var out bytes.Buffer
-		term := &redirectconsole{
+		term := console{
 			stdout: &out,
 			stderr: &bytes.Buffer{},
 		}
@@ -248,7 +243,7 @@ func TestCurl(t *testing.T) {
 		defer os.Chdir(oldWd)
 
 		var out bytes.Buffer
-		term := &redirectconsole{
+		term := console{
 			stdout: &out,
 			stderr: &bytes.Buffer{},
 		}
@@ -277,7 +272,7 @@ func TestCurl(t *testing.T) {
 		defer redirectServer.Close()
 
 		var out bytes.Buffer
-		term := &redirectconsole{
+		term := console{
 			stdout: &out,
 			stderr: &bytes.Buffer{},
 		}
@@ -301,7 +296,7 @@ func TestCurl(t *testing.T) {
 		defer redirectServer.Close()
 
 		var out bytes.Buffer
-		term := &redirectconsole{
+		term := console{
 			stdout: &out,
 			stderr: &bytes.Buffer{},
 		}

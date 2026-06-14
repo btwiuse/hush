@@ -65,7 +65,7 @@ func coreUtilBuiltin(name string) builtinFunc {
 		}
 
 		cmd := newCmd()
-		cmd.SetIO(getconsoleStdin(term), term.Stdout(), term.Stderr())
+		cmd.SetIO(term.Stdin(), term.Stdout(), term.Stderr())
 		wd, _ := os.Getwd()
 		cmd.SetWorkingDir(wd)
 		cmd.SetLookupEnv(func(key string) (string, bool) {

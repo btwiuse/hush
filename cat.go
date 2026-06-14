@@ -31,7 +31,7 @@ func cat(term console, args ...string) error {
 
 func catStdin(term console) error {
 	println("catting!!!")
-	stdin := getconsoleStdin(term)
+	stdin := term.Stdin()
 	stdout := term.Stdout()
 	stdoutIsTerm := isTerminal(stdout)
 

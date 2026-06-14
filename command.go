@@ -19,35 +19,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-type console interface {
-	Stdout() io.Writer
-	Stderr() io.Writer
-}
-
-type redirectconsole struct {
+// console carries the I/O streams for builtin commands.
+type console struct {
 	stdin          io.Reader
 	stdout, stderr io.Writer
 }
 
-func (c *redirectconsole) Stdin() io.Reader {
-	return c.stdin
-}
-
-func (c *redirectconsole) Stdout() io.Writer {
-	return c.stdout
-}
-
-func (c *redirectconsole) Stderr() io.Writer {
-	return c.stderr
-}
-
-
-func getconsoleStdin(term console) io.Reader {
-	if stdiner, ok := term.(interface{ Stdin() io.Reader }); ok {
-		return stdiner.Stdin()
-	}
-	return os.Stdin
-}
+func (c console) Stdin() io.Reader  { return c.stdin }
+func (c console) Stdout() io.Writer { return c.stdout }
+func (c console) Stderr() io.Writer { return c.stderr }
 
 // expandWord evaluates a syntax.Word into a string using the full
 // shell expansion pipeline (param expansion, tilde expansion, arithmetic,
@@ -126,8 +106,8 @@ func hushBuiltinMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 				}
 				return true
 			})
-			console := &interpConsole{hc: hc}
-			err := fn(console, args[1:]...)
+			c := console{stdin: hc.Stdin, stdout: hc.Stdout, stderr: hc.Stderr}
+			err := fn(c, args[1:]...)
 			if err != nil {
 				var es interp.ExitStatus
 				if !errors.As(err, &es) {
@@ -164,14 +144,6 @@ func syncEnvHandler(ctx context.Context, args []string) ([]string, error) {
 	return args, nil
 }
 
-// interpConsole adapts interp.HandlerContext to the hush console interface.
-type interpConsole struct {
-	hc interp.HandlerContext
-}
-
-func (c *interpConsole) Stdout() io.Writer { return c.hc.Stdout }
-func (c *interpConsole) Stderr() io.Writer { return c.hc.Stderr }
-func (c *interpConsole) Stdin() io.Reader  { return c.hc.Stdin }
 
 // execHandlerNoExecBit returns an interp.ExecHandlerFunc that finds and executes
 // binaries without checking the executable bit (mode bits are unreliable on
