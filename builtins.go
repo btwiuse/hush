@@ -15,6 +15,7 @@ import (
 
 	"github.com/btwiuse/u-root/pkg/core"
 	"github.com/btwiuse/u-root/pkg/core/base64"
+	"github.com/btwiuse/u-root/pkg/core/cat"
 	"github.com/btwiuse/u-root/pkg/core/chmod"
 	"github.com/btwiuse/u-root/pkg/core/cp"
 	"github.com/btwiuse/u-root/pkg/core/find"
@@ -39,6 +40,7 @@ var (
 )
 
 var commandBuilders = map[string]func() core.Command{
+	"cat":    func() core.Command { return cat.New() },
 	"chmod":  func() core.Command { return chmod.New() },
 	"cp":     func() core.Command { return cp.New() },
 	"find":   func() core.Command { return find.New() },
@@ -77,8 +79,7 @@ func coreUtilBuiltin(name string) builtinFunc {
 
 func init() {
 	for k, v := range map[string]builtinFunc{
-		"cat":    cat,
-		"cat2":    cat,
+		"cat":    coreUtilBuiltin("cat"),
 		"chmod":  coreUtilBuiltin("chmod"),
 		"clear":  clear,
 		"cp":     coreUtilBuiltin("cp"),
