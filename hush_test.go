@@ -39,11 +39,11 @@ func TestExport(t *testing.T) {
 		}
 		runner := testRunner(term)
 
-		if err := runLine(runner, term, "export HUSH_TEST_VAR=hello"); err != nil {
+		if err := runLine(runner, "export HUSH_TEST_VAR=hello"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		// Verify via echo that the var is visible in the interp environment
-		if err := runLine(runner, term, "echo $HUSH_TEST_VAR"); err != nil {
+		if err := runLine(runner, "echo $HUSH_TEST_VAR"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if !strings.Contains(out.String(), "hello") {
@@ -60,14 +60,14 @@ func TestExport(t *testing.T) {
 		}
 		runner := testRunner(term)
 
-		if err := runLine(runner, term, "export HUSH_TEST_VAR=hello"); err != nil {
+		if err := runLine(runner, "export HUSH_TEST_VAR=hello"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if err := runLine(runner, term, "export HUSH_TEST_VAR="); err != nil {
+		if err := runLine(runner, "export HUSH_TEST_VAR="); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		out.Reset()
-		if err := runLine(runner, term, "echo $HUSH_TEST_VAR"); err != nil {
+		if err := runLine(runner, "echo $HUSH_TEST_VAR"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if got := strings.TrimSpace(out.String()); got != "" {
@@ -91,10 +91,10 @@ func TestLn(t *testing.T) {
 		target := dir + "/target"
 		link := dir + "/link"
 
-		if err := runLine(runner, term, "touch "+target); err != nil {
+		if err := runLine(runner, "touch "+target); err != nil {
 			t.Fatalf("unexpected error creating target: %v", err)
 		}
-		if err := runLine(runner, term, "ln -s "+target+" "+link); err != nil {
+		if err := runLine(runner, "ln -s "+target+" "+link); err != nil {
 			t.Fatalf("unexpected error creating symlink: %v", err)
 		}
 		info, err := os.Lstat(link)
@@ -123,7 +123,7 @@ func TestLn(t *testing.T) {
 		runner := testRunner(term)
 
 		dir := t.TempDir()
-		if err := runLine(runner, term, "ln "+dir+" "+dir+"/link"); err == nil {
+		if err := runLine(runner, "ln "+dir+" "+dir+"/link"); err == nil {
 			t.Error("expected error for ln without -s")
 		}
 	})
@@ -143,18 +143,18 @@ func TestLn(t *testing.T) {
 		link := dir + "/link"
 
 		// Create two targets and an initial symlink
-		if err := runLine(runner, term, "touch "+target1); err != nil {
+		if err := runLine(runner, "touch "+target1); err != nil {
 			t.Fatalf("unexpected error creating target1: %v", err)
 		}
-		if err := runLine(runner, term, "touch "+target2); err != nil {
+		if err := runLine(runner, "touch "+target2); err != nil {
 			t.Fatalf("unexpected error creating target2: %v", err)
 		}
-		if err := runLine(runner, term, "ln -s "+target1+" "+link); err != nil {
+		if err := runLine(runner, "ln -s "+target1+" "+link); err != nil {
 			t.Fatalf("unexpected error creating first symlink: %v", err)
 		}
 
 		// Force override to point to target2
-		if err := runLine(runner, term, "ln -sf "+target2+" "+link); err != nil {
+		if err := runLine(runner, "ln -sf "+target2+" "+link); err != nil {
 			t.Fatalf("unexpected error force-creating symlink: %v", err)
 		}
 		got, err := os.Readlink(link)
@@ -175,7 +175,7 @@ func TestLn(t *testing.T) {
 		}
 		runner := testRunner(term)
 
-		if err := runLine(runner, term, "ln -s /tmp"); err == nil {
+		if err := runLine(runner, "ln -s /tmp"); err == nil {
 			t.Error("expected error for ln -s with 1 arg")
 		}
 	})

@@ -15,13 +15,6 @@ import (
 	"github.com/btwiuse/sh/v3/syntax"
 )
 
-func errcode(err error) int {
-	if err != nil {
-		return 1
-	}
-	return 0
-}
-
 // Run runs the hush shell
 // NewRunner creates an interp.Runner with all hush builtins and middleware.
 func NewRunner(in io.Reader, out, outErr io.Writer) *interp.Runner {
@@ -39,7 +32,7 @@ func NewRunner(in io.Reader, out, outErr io.Writer) *interp.Runner {
 
 // RunLine executes a single shell line. It is a public wrapper around runLine.
 func RunLine(runner *interp.Runner, line string) error {
-	return runLine(runner, nil, line)
+	return runLine(runner, line)
 }
 
 func Run() int {

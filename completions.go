@@ -54,23 +54,18 @@ func getCompletionsErr(line string, cursor int) ([]completion, error) {
 		return nil, err
 	}
 
-	commandWordStr, err := expandWord(commandWord)
-	if err != nil {
-		return nil, err
-	}
 	cursorWordStr, err := expandWord(cursorWord)
 	if err != nil {
 		return nil, err
 	}
 
 	return getStatementCompletions(
-		commandWordStr,
 		cursorWordStr,
 		cursorStmtOffset+int(cursorWord.Pos().Offset()),
 		cursorStmtOffset+int(cursorWord.End().Offset()))
 }
 
-func getStatementCompletions(commandName string, word string, start, end int) ([]completion, error) {
+func getStatementCompletions(word string, start, end int) ([]completion, error) {
 	var dir string
 	var filter string
 

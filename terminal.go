@@ -6,21 +6,11 @@ import (
 	"os/exec"
 
 	"github.com/btwiuse/sh/v3/interp"
-	"github.com/fatih/color"
 )
 
-const (
-	escapeCSI      = '\x1B'
-	escapeLBracket = '['
-)
+const escapeCSI = '\x1B'
 
 type terminal struct {
-	// reader state
-	line   []rune
-	cursor int
-	// command state
-	history *history
-
 	out, outErr io.Writer
 	runner      *interp.Runner
 }
@@ -31,11 +21,6 @@ func newTerminal(out, outErr io.Writer, runner *interp.Runner) *terminal {
 		outErr: outErr,
 		runner: runner,
 	}
-	history, err := newHistory()
-	if err != nil {
-		term.ErrPrint(color.RedString(err.Error()) + "\n")
-	}
-	term.history = history
 	return term
 }
 
@@ -45,18 +30,6 @@ func (t *terminal) Stdout() io.Writer {
 
 func (t *terminal) Stderr() io.Writer {
 	return t.outErr
-}
-
-func (t *terminal) Note() io.Writer {
-	return io.Discard
-}
-
-func (t *terminal) Print(args ...interface{}) {
-	fmt.Fprint(t.Stdout(), args...)
-}
-
-func (t *terminal) Printf(format string, args ...interface{}) {
-	fmt.Fprintf(t.Stdout(), format, args...)
 }
 
 func (t *terminal) ErrPrint(args ...interface{}) {

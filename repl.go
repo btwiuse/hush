@@ -87,7 +87,7 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 		}
 
 		if val != "" {
-			err = runLine(t.runner, t, val)
+			err = runLine(t.runner, val)
 			lastExitCode = exitCodeFromError(err)
 			if err != nil {
 				var es interp.ExitStatus

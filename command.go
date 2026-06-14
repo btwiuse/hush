@@ -22,7 +22,6 @@ import (
 type console interface {
 	Stdout() io.Writer
 	Stderr() io.Writer
-	Note() io.Writer
 }
 
 type redirectconsole struct {
@@ -42,9 +41,6 @@ func (c *redirectconsole) Stderr() io.Writer {
 	return c.stderr
 }
 
-func (c *redirectconsole) Note() io.Writer {
-	return io.Discard
-}
 
 func getconsoleStdin(term console) io.Reader {
 	if stdiner, ok := term.(interface{ Stdin() io.Reader }); ok {
@@ -75,7 +71,7 @@ func formatStmt(source string, s *syntax.Stmt) string {
 }
 
 // runLine parses a shell line and executes it via the interp.Runner.
-func runLine(runner *interp.Runner, term console, line string) error {
+func runLine(runner *interp.Runner, line string) error {
 	parser := syntax.NewParser()
 	var cmdErr error
 	ctx := context.Background()
@@ -175,7 +171,6 @@ type interpConsole struct {
 
 func (c *interpConsole) Stdout() io.Writer { return c.hc.Stdout }
 func (c *interpConsole) Stderr() io.Writer { return c.hc.Stderr }
-func (c *interpConsole) Note() io.Writer   { return io.Discard }
 func (c *interpConsole) Stdin() io.Reader  { return c.hc.Stdin }
 
 // execHandlerNoExecBit returns an interp.ExecHandlerFunc that finds and executes
