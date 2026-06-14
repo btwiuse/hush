@@ -78,6 +78,7 @@ func coreUtilBuiltin(name string) builtinFunc {
 func init() {
 	for k, v := range map[string]builtinFunc{
 		"cat":    cat,
+		"cat2":    cat,
 		"chmod":  coreUtilBuiltin("chmod"),
 		"clear":  clear,
 		"cp":     coreUtilBuiltin("cp"),
