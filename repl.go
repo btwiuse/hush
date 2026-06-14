@@ -42,7 +42,7 @@ func exitCodeFromError(err error) int {
 
 func (t *terminal) bubblineReadEvalPrintLoop() int {
 	m := bubbline.New()
-	m.ShowHelp = false
+	m.ShowHelp = true
 	m.CursorMode = cursor.CursorStatic
 
 	home, err := os.UserHomeDir()
