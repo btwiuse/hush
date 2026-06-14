@@ -322,12 +322,9 @@ func TestRun(t *testing.T) {
 			expectCode: 0,
 		},
 	} {
-		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
-			t.Parallel()
 			var in, out bytes.Buffer
 			exitCode := run(&in, &out, &out, []string{"hush", "-c", tc.input})
-			_ = out.String()
 			if tc.expectCode != exitCode {
 				t.Errorf("Unexpected exit code.\nExpected: %d\nActual:  %d", tc.expectCode, exitCode)
 			}

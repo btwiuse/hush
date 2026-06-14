@@ -17,7 +17,7 @@ func Run(args []string) error {
 
 	files := set.Args()
 	if len(files) == 0 {
-		return head(os.Stdin, *n, "<stdin>")
+		return head(os.Stdin, *n)
 	}
 	for _, path := range files {
 		f, err := os.Open(path)
@@ -28,13 +28,13 @@ func Run(args []string) error {
 		if len(files) > 1 {
 			fmt.Printf("==> %s <==\n", path)
 		}
-		head(f, *n, path)
+		head(f, *n)
 		f.Close()
 	}
 	return nil
 }
 
-func head(r io.Reader, n int, name string) error {
+func head(r io.Reader, n int) error {
 	sc := bufio.NewScanner(r)
 	for i := 0; i < n && sc.Scan(); i++ {
 		fmt.Println(sc.Text())

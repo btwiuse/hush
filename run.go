@@ -30,11 +30,6 @@ func NewRunner(in io.Reader, out, outErr io.Writer) *interp.Runner {
 	return runner
 }
 
-// RunLine executes a single shell line. It is a public wrapper around runLine.
-func RunLine(runner *interp.Runner, line string) error {
-	return runLine(runner, line)
-}
-
 func Run() int {
 	if cmd, ok := busybox.Commands[filepath.Base(os.Args[0])]; ok {
 		return autoerr(cmd(os.Args))

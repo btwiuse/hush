@@ -111,7 +111,6 @@ runEditor 主循环:
 
 ```go
 func NewRunner(in, out, outErr) *interp.Runner  // 创建 runner
-func RunLine(runner, line) error                 // 执行单行
 ```
 
 `cmd/sh` 和旧的 `cmd/hush` 共享同一套执行逻辑。
