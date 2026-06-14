@@ -10,30 +10,16 @@ import (
 
 const escapeCSI = '\x1B'
 
-type terminal struct {
-	out, outErr io.Writer
-	runner      *interp.Runner
+type repl struct {
+	Console *Console
+	runner  *interp.Runner
 }
 
-func newTerminal(out, outErr io.Writer, runner *interp.Runner) *terminal {
-	term := &terminal{
-		out:    out,
-		outErr: outErr,
-		runner: runner,
+func newRepl(term *Console, runner *interp.Runner) *repl {
+	return &repl{
+		Console: term,
+		runner:  runner,
 	}
-	return term
-}
-
-func (t *terminal) Stdout() io.Writer {
-	return t.out
-}
-
-func (t *terminal) Stderr() io.Writer {
-	return t.outErr
-}
-
-func (t *terminal) ErrPrint(args ...interface{}) {
-	fmt.Fprint(t.Stderr(), args...)
 }
 
 func clearWriter(w io.Writer) {

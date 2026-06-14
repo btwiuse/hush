@@ -106,6 +106,6 @@ func run(in io.Reader, out, outErr io.Writer, args []string) int {
 	}
 
 	// REPL mode
-	term := newTerminal(out, outErr, runner)
-	return term.bubblineReadEvalPrintLoop()
+	r := newRepl(&Console{Stdin: in, Stdout: out, Stderr: outErr}, runner)
+	return r.bubblineReadEvalPrintLoop()
 }

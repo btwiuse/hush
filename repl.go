@@ -40,7 +40,7 @@ func exitCodeFromError(err error) int {
 	return 1
 }
 
-func (t *terminal) bubblineReadEvalPrintLoop() int {
+func (r *repl) bubblineReadEvalPrintLoop() int {
 	m := bubbline.New()
 	m.ShowHelp = true
 	m.CursorMode = cursor.CursorStatic
@@ -77,7 +77,7 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 			if errors.Is(err, bubbline.ErrTerminated) {
 				return 0
 			}
-			t.ErrPrint(color.RedString(err.Error()) + "\n")
+			fmt.Fprint(r.Console.Stderr, color.RedString(err.Error())+"\n")
 			lastExitCode = 1
 			continue
 		}
@@ -87,7 +87,7 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 		}
 
 		if val != "" {
-			err = runLine(t.runner, val)
+			err = runLine(r.runner, val)
 			lastExitCode = exitCodeFromError(err)
 			if err != nil {
 				var es interp.ExitStatus
@@ -96,10 +96,10 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 				} else if isKilledBySignal(err) {
 					fmt.Println("^C")
 				} else {
-					t.ErrPrint(color.RedString(err.Error()) + "\n")
+					fmt.Fprint(r.Console.Stderr, color.RedString(err.Error())+"\n")
 				}
 			}
-			if t.runner.Exited() {
+			if r.runner.Exited() {
 				return lastExitCode
 			}
 		}

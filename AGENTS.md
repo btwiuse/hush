@@ -41,7 +41,7 @@ hush.Run()             # entry point (cmd/hush/main.go)
 
 ## Key Types
 
-- **`terminal`** — REPL state: `line []rune`, `cursor int`, `lastExitCode`, `history`
+- **`repl`** — REPL state: holds `*Console` and `*interp.Runner`, has `bubblineReadEvalPrintLoop`
 - **`Console`** — struct with public `Stdin`, `Stdout`, `Stderr` fields (used everywhere for output)
 - **`builtinFunc`** — `func(term Console, args ...string) error`
 
