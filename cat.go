@@ -30,12 +30,14 @@ func cat(term console, args ...string) error {
 }
 
 func catStdin(term console) error {
+	println("catting!!!")
 	stdin := getconsoleStdin(term)
 	stdout := term.Stdout()
 	stdoutIsTerm := isTerminal(stdout)
 
 	buf := make([]byte, 1)
 	for {
+		println("stdin.Read byte")
 		n, err := stdin.Read(buf)
 		if err != nil {
 			if err == io.EOF {
