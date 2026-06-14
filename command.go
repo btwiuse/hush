@@ -19,15 +19,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-// console carries the I/O streams for builtin commands.
-type console struct {
-	stdin          io.Reader
-	stdout, stderr io.Writer
+// Console carries the I/O streams for builtin commands.
+type Console struct {
+	Stdin          io.Reader
+	Stdout, Stderr io.Writer
 }
-
-func (c console) Stdin() io.Reader  { return c.stdin }
-func (c console) Stdout() io.Writer { return c.stdout }
-func (c console) Stderr() io.Writer { return c.stderr }
 
 // expandWord evaluates a syntax.Word into a string using the full
 // shell expansion pipeline (param expansion, tilde expansion, arithmetic,
@@ -106,7 +102,7 @@ func hushBuiltinMiddleware(next interp.ExecHandlerFunc) interp.ExecHandlerFunc {
 				}
 				return true
 			})
-			c := console{stdin: hc.Stdin, stdout: hc.Stdout, stderr: hc.Stderr}
+			c := &Console{Stdin: hc.Stdin, Stdout: hc.Stdout, Stderr: hc.Stderr}
 			err := fn(c, args[1:]...)
 			if err != nil {
 				var es interp.ExitStatus

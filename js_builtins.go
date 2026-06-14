@@ -27,16 +27,16 @@ func jsEval(funcStr string, args ...interface{}) js.Value {
 	return f.Invoke(args...)
 }
 
-func jseval(term console, args ...string) error {
+func jseval(term *Console, args ...string) error {
 	if len(args) < 1 {
 		return errors.New("Must provide a string to run as a function")
 	}
 	result := jsEval(args[0], strings.Join(args[1:], " "))
-	fmt.Fprintln(term.Stdout(), result)
+	fmt.Fprintln(term.Stdout, result)
 	return nil
 }
 
-func jsdownload(term console, args ...string) error {
+func jsdownload(term *Console, args ...string) error {
 	if len(args) < 1 {
 		return errors.New("Must provide a file to download")
 	}

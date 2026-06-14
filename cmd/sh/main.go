@@ -19,7 +19,7 @@ func main() {
 	command := flag.String("c", "", "command to be executed")
 	flag.Parse()
 
-	runner := hush.NewRunner(os.Stdin, os.Stdout, os.Stderr)
+	runner := hush.NewRunner(&hush.Console{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr})
 
 	err := runAll(runner, *command)
 	var es interp.ExitStatus

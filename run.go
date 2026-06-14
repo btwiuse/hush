@@ -17,9 +17,9 @@ import (
 
 // Run runs the hush shell
 // NewRunner creates an interp.Runner with all hush builtins and middleware.
-func NewRunner(in io.Reader, out, outErr io.Writer) *interp.Runner {
+func NewRunner(term *Console) *interp.Runner {
 	runner, err := interp.New(
-		interp.StdIO(in, out, outErr),
+		interp.StdIO(term.Stdin, term.Stdout, term.Stderr),
 		interp.Interactive(true),
 		interp.ExecHandlers(hushBuiltinMiddleware),
 		interp.CallHandler(syncEnvHandler),
@@ -54,7 +54,7 @@ func run(in io.Reader, out, outErr io.Writer, args []string) int {
 		return 2
 	}
 
-	runner := NewRunner(in, out, outErr)
+	runner := NewRunner(&Console{Stdin: in, Stdout: out, Stderr: outErr})
 
 	if *command != "" {
 		reader := strings.NewReader(*command)

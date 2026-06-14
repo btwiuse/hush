@@ -11,9 +11,9 @@ import (
 	"github.com/btwiuse/sh/v3/interp"
 )
 
-func testRunner(term console) *interp.Runner {
+func testRunner(term *Console) *interp.Runner {
 	r, err := interp.New(
-		interp.StdIO(term.Stdin(), term.Stdout(), term.Stderr()),
+		interp.StdIO(term.Stdin, term.Stdout, term.Stderr),
 		interp.ExecHandlers(hushBuiltinMiddleware),
 	)
 	if err != nil {
@@ -28,9 +28,9 @@ func TestExport(t *testing.T) {
 	t.Run("export VAR=value", func(t *testing.T) {
 		t.Parallel()
 		var out, errOut bytes.Buffer
-		term := console{
-			stdout: &out,
-			stderr: &errOut,
+		term := &Console{
+			Stdout: &out,
+			Stderr: &errOut,
 		}
 		runner := testRunner(term)
 
@@ -49,9 +49,9 @@ func TestExport(t *testing.T) {
 	t.Run("export VAR= sets empty", func(t *testing.T) {
 		t.Parallel()
 		var out, errOut bytes.Buffer
-		term := console{
-			stdout: &out,
-			stderr: &errOut,
+		term := &Console{
+			Stdout: &out,
+			Stderr: &errOut,
 		}
 		runner := testRunner(term)
 
@@ -75,10 +75,10 @@ func TestLn(t *testing.T) {
 	t.Parallel()
 	t.Run("ln -s creates symlink", func(t *testing.T) {
 		t.Parallel()
-		term := console{
-			stdin:  &bytes.Buffer{},
-			stdout: &bytes.Buffer{},
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdin:  &bytes.Buffer{},
+			Stdout: &bytes.Buffer{},
+			Stderr: &bytes.Buffer{},
 		}
 		runner := testRunner(term)
 
@@ -110,10 +110,10 @@ func TestLn(t *testing.T) {
 
 	t.Run("ln without -s returns error", func(t *testing.T) {
 		t.Parallel()
-		term := console{
-			stdin:  &bytes.Buffer{},
-			stdout: &bytes.Buffer{},
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdin:  &bytes.Buffer{},
+			Stdout: &bytes.Buffer{},
+			Stderr: &bytes.Buffer{},
 		}
 		runner := testRunner(term)
 
@@ -125,10 +125,10 @@ func TestLn(t *testing.T) {
 
 	t.Run("ln -sf replaces existing file", func(t *testing.T) {
 		t.Parallel()
-		term := console{
-			stdin:  &bytes.Buffer{},
-			stdout: &bytes.Buffer{},
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdin:  &bytes.Buffer{},
+			Stdout: &bytes.Buffer{},
+			Stderr: &bytes.Buffer{},
 		}
 		runner := testRunner(term)
 
@@ -163,10 +163,10 @@ func TestLn(t *testing.T) {
 
 	t.Run("ln -s with 1 arg returns error", func(t *testing.T) {
 		t.Parallel()
-		term := console{
-			stdin:  &bytes.Buffer{},
-			stdout: &bytes.Buffer{},
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdin:  &bytes.Buffer{},
+			Stdout: &bytes.Buffer{},
+			Stderr: &bytes.Buffer{},
 		}
 		runner := testRunner(term)
 
@@ -187,9 +187,9 @@ func TestCurl(t *testing.T) {
 		defer ts.Close()
 
 		var out bytes.Buffer
-		term := console{
-			stdout: &out,
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdout: &out,
+			Stderr: &bytes.Buffer{},
 		}
 		if err := curl(term, ts.URL); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -207,9 +207,9 @@ func TestCurl(t *testing.T) {
 		defer ts.Close()
 
 		var out bytes.Buffer
-		term := console{
-			stdout: &out,
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdout: &out,
+			Stderr: &bytes.Buffer{},
 		}
 		if err := curl(term, "-I", ts.URL); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -221,9 +221,9 @@ func TestCurl(t *testing.T) {
 
 	t.Run("curl with no URL", func(t *testing.T) {
 		var out bytes.Buffer
-		term := console{
-			stdout: &out,
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdout: &out,
+			Stderr: &bytes.Buffer{},
 		}
 		if err := curl(term); err == nil {
 			t.Error("expected error for no URL")
@@ -243,9 +243,9 @@ func TestCurl(t *testing.T) {
 		defer os.Chdir(oldWd)
 
 		var out bytes.Buffer
-		term := console{
-			stdout: &out,
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdout: &out,
+			Stderr: &bytes.Buffer{},
 		}
 		if err := curl(term, "-O", ts.URL+"/testfile.txt"); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -272,9 +272,9 @@ func TestCurl(t *testing.T) {
 		defer redirectServer.Close()
 
 		var out bytes.Buffer
-		term := console{
-			stdout: &out,
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdout: &out,
+			Stderr: &bytes.Buffer{},
 		}
 		if err := curl(term, "-L", redirectServer.URL); err != nil {
 			t.Fatalf("unexpected error following redirect: %v", err)
@@ -296,9 +296,9 @@ func TestCurl(t *testing.T) {
 		defer redirectServer.Close()
 
 		var out bytes.Buffer
-		term := console{
-			stdout: &out,
-			stderr: &bytes.Buffer{},
+		term := &Console{
+			Stdout: &out,
+			Stderr: &bytes.Buffer{},
 		}
 		if err := curl(term, redirectServer.URL); err != nil {
 			t.Fatalf("unexpected error: %v", err)

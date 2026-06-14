@@ -42,9 +42,8 @@ hush.Run()             # entry point (cmd/hush/main.go)
 ## Key Types
 
 - **`terminal`** — REPL state: `line []rune`, `cursor int`, `lastExitCode`, `history`
-- **`console`** — struct with `Stdout()`, `Stderr()`, `Note()` (used everywhere for output)
-- **`builtinFunc`** — `func(term console, args ...string) error`
-- **`redirectConsole`** — `console` impl for pipes/redirections
+- **`Console`** — struct with public `Stdin`, `Stdout`, `Stderr` fields (used everywhere for output)
+- **`builtinFunc`** — `func(term Console, args ...string) error`
 
 ## Platform Separation (Build Tags)
 

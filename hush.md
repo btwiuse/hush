@@ -110,7 +110,7 @@ runEditor 主循环:
 ### package hush 新增公开 API
 
 ```go
-func NewRunner(in, out, outErr) *interp.Runner  // 创建 runner
+func NewRunner(term *Console) *interp.Runner  // 创建 runner
 ```
 
 `cmd/sh` 和旧的 `cmd/hush` 共享同一套执行逻辑。

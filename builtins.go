@@ -33,7 +33,7 @@ import (
 	lnpkg "github.com/btwiuse/hush/busybox/ln"
 )
 
-type builtinFunc func(term console, args ...string) error
+type builtinFunc func(term *Console, args ...string) error
 
 var (
 	builtins = map[string]builtinFunc{}
@@ -59,14 +59,14 @@ var commandBuilders = map[string]func() core.Command{
 }
 
 func coreUtilBuiltin(name string) builtinFunc {
-	return func(term console, args ...string) error {
+	return func(term *Console, args ...string) error {
 		newCmd, ok := commandBuilders[name]
 		if !ok {
 			return fmt.Errorf("%s: unknown command", name)
 		}
 
 		cmd := newCmd()
-		cmd.SetIO(term.Stdin(), term.Stdout(), term.Stderr())
+		cmd.SetIO(term.Stdin, term.Stdout, term.Stderr)
 		wd, _ := os.Getwd()
 		cmd.SetWorkingDir(wd)
 		cmd.SetLookupEnv(func(key string) (string, bool) {
@@ -105,7 +105,7 @@ func init() {
 	}
 }
 
-func rmdir(term console, args ...string) error {
+func rmdir(term *Console, args ...string) error {
 	if len(args) == 0 {
 		return errors.New("Not enough args")
 	}
@@ -125,7 +125,7 @@ func rmdir(term console, args ...string) error {
 	return nil
 }
 
-func which(term console, args ...string) error {
+func which(term *Console, args ...string) error {
 	if len(args) == 0 {
 		return errors.New("Not enough args")
 	}
@@ -134,12 +134,12 @@ func which(term console, args ...string) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(term.Stdout(), path)
+		fmt.Fprintln(term.Stdout, path)
 	}
 	return nil
 }
 
-func curl(term console, args ...string) error {
+func curl(term *Console, args ...string) error {
 	set := flag.NewFlagSet("curl", flag.ContinueOnError)
 	head := set.Bool("I", false, "Fetch headers only")
 	follow := set.Bool("L", false, "Follow redirects")
@@ -181,9 +181,9 @@ func curl(term console, args ...string) error {
 			return errors.Wrap(err, rawURL)
 		}
 
-		fmt.Fprintf(term.Stdout(), "HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
-		resp.Header.Write(term.Stdout())
-		fmt.Fprintln(term.Stdout())
+		fmt.Fprintf(term.Stdout, "HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
+		resp.Header.Write(term.Stdout)
+		fmt.Fprintln(term.Stdout)
 
 		if *head {
 			resp.Body.Close()
@@ -212,7 +212,7 @@ func curl(term console, args ...string) error {
 				return err
 			}
 		} else {
-			_, err = io.Copy(term.Stdout(), resp.Body)
+			_, err = io.Copy(term.Stdout, resp.Body)
 			resp.Body.Close()
 			if err != nil {
 				return err
@@ -223,12 +223,12 @@ func curl(term console, args ...string) error {
 	return nil
 }
 
-func clear(term console, args ...string) error {
-	clearWriter(term.Stdout())
+func clear(term *Console, args ...string) error {
+	clearWriter(term.Stdout)
 	return nil
 }
 
-func env(term console, args ...string) error {
+func env(term *Console, args ...string) error {
 	var kv []string
 	const equals = '='
 	for i, arg := range args {
@@ -241,18 +241,18 @@ func env(term console, args ...string) error {
 
 	if len(args) == 0 {
 		for _, e := range os.Environ() {
-			fmt.Fprintln(term.Stdout(), e)
+			fmt.Fprintln(term.Stdout, e)
 		}
 		return nil
 	}
 
 	cmd := exec.Command(args[0], args[1:]...) // nolint:gosec
-	cmd.Stdout = term.Stdout()
-	cmd.Stderr = term.Stderr()
+	cmd.Stdout = term.Stdout
+	cmd.Stderr = term.Stderr
 	cmd.Env = append(os.Environ(), kv...)
 	return cmd.Run()
 }
 
-func ln(term console, args ...string) error {
+func ln(term *Console, args ...string) error {
 	return lnpkg.Run(args)
 }
