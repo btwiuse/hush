@@ -63,6 +63,7 @@ func (t *terminal) bubblineReadEvalPrintLoop() int {
 	for {
 		updatePrompt(m, lastExitCode)
 
+		println("getline")
 		val, err := m.GetLine(ProgramOptions...)
 
 		if err != nil {
