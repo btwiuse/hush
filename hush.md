@@ -85,15 +85,16 @@ ptyOutput (后台 goroutine)
   ├─ ptmx.Read() → 读取子进程所有输出
   ├─ os.Stdout.Write() → 直通终端
   └─ 跟踪 lastLine（最后一个不完整行）
-       └─ WaitForPrompt(idleTimeout)
-            └─ 输出静默 100ms 后返回 lastLine 作为 prompt
 
 runEditor 主循环:
-  1. WaitForPrompt → 拿到子进程真实 prompt
-  2. m.Prompt = detectedPrompt
+  1. PassthroughUntilPrompt(canonical="") → idle 检测→首次 prompt
+  2. m.Prompt = canonicalPrompt
   3. m.GetLine() → 用户输入
   4. ptmx.Write(input) → 发送给子进程
-  5. 回到 1
+  5. PassthroughUntilPrompt(canonical) → 双向转发 stdin↔ptmx
+     ├─ 用户按键 → ptmx (TUI 程序正常工作)
+     ├─ ptmx 输出 → stdout
+     └─ 一旦 lastLine == canonical → 命中 prompt → 回到 2
 ```
 
 #### 文件结构
@@ -131,9 +132,12 @@ func RunLine(runner, line) error                 // 执行单行
 
 已解决。`hu` 自动检测子进程（sh/python/lua 等）输出的真实提示符。
 
-工作原理：`ptyOutput` 后台读取 PTY 输出，跟踪最后一个不完整行（即子进程停留在提示符等待输入时的最后一行）。当输出静默 100ms 后，将该行作为 `bubbline` 的 prompt 显示。
+工作方式分两阶段：
 
-若检测失败（子进程无提示或退出），回退到绿色 `➜ dir $`。
+1. **首次检测**：子进程启动后，等待输出静默 100ms，取最后一个不完整行作为 canonical prompt。
+2. **后续匹配**：每次发送命令后进入 passthrough 模式（双向转发 stdin↔ptmx），实时比对 `lastLine == canonical`。精确命中后才判定为 prompt，彻底消除 TUI 程序（less/htop）的误触。
+
+命中失败降级：若 5 秒内未命中（prompt 可能因 `cd` 等操作变化），回退到 idle 检测并更新 canonical。
 
 ### ~~3. Tab 补全未实现~~
 
@@ -143,9 +147,9 @@ func RunLine(runner, line) error                 // 执行单行
 
 已解决。新架构移除了盲目的 `io.Copy(os.Stdout, ptmx)`，改为 `ptyOutput` 后台 goroutine 管理 PTY 输出：
 
-- **子进程输出时**：所有输出通过 goroutine 直通 `os.Stdout`，此时 `GetLine` 不在运行，无交错问题。
-- **等待输入时**：`WaitForPrompt` 检测到输出静默 100ms 后才调用 `GetLine`，此时子进程无输出，bubbline 独占终端。
-- **切换时机**：按下回车后立即退出 `GetLine`，进入 passthrough 模式；检测到 prompt 后再重新进入输入模式。
+- **子进程输出时**：后台 goroutine 直通 `os.Stdout`，同时实时比对 `lastLine` 与 canonical prompt。匹配成功才触发 GetLine。
+- **passthrough 阶段**：stdin 进入 raw mode，逐字节转发到 ptmx，TUI 程序交互完全正常。
+- **切换时机**：按下回车后立即进入 passthrough 转发模式；检测到 prompt 后再进入输入模式。
 
 ### 5. 多行构造无视觉提示
 

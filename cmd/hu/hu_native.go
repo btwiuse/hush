@@ -8,15 +8,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/key"
 	"github.com/fatih/color"
 	"github.com/justwasm/bubbline"
 )
-
-const promptIdle = 100 * time.Millisecond
 
 func main() {
 	if len(os.Args) < 2 {
@@ -59,14 +56,16 @@ func runEditor(ptmx *os.File) int {
 		key.WithHelp("C-o/C-j", "force newline"),
 	)
 
-	// Detect initial prompt from child process output.
-	currentPrompt := po.WaitForPrompt(promptIdle)
-	if currentPrompt == "" {
-		currentPrompt = fallbackPrompt()
+	// Detect initial prompt from child process — this becomes the canonical
+	// prompt string used for exact-match detection on ALL subsequent rounds.
+	// Once set, it is never updated from detection results.
+	canonicalPrompt := po.PassthroughUntilPrompt(ptmx, "")
+	if canonicalPrompt == "" {
+		canonicalPrompt = fallbackPrompt()
 	}
 
 	for {
-		m.Prompt = currentPrompt
+		m.Prompt = canonicalPrompt
 		val, err := m.GetLine(ProgramOptions...)
 		if err != nil {
 			if err == io.EOF {
@@ -74,10 +73,9 @@ func runEditor(ptmx *os.File) int {
 			}
 			if errors.Is(err, bubbline.ErrInterrupted) {
 				fmt.Println("^C")
-				currentPrompt = po.WaitForPrompt(promptIdle)
-				if currentPrompt == "" {
-					return 0
-				}
+				po.PassthroughUntilPrompt(ptmx, canonicalPrompt)
+				// Ignore return — canonicalPrompt stays fixed.
+				// If child exited, next write will fail.
 				continue
 			}
 			if errors.Is(err, bubbline.ErrTerminated) {
@@ -97,9 +95,11 @@ func runEditor(ptmx *os.File) int {
 			return 0 // child exited
 		}
 
-		// Wait for child to finish processing and output its next prompt.
-		currentPrompt = po.WaitForPrompt(promptIdle)
-		if currentPrompt == "" {
+		// Passthrough: forward user keystrokes to child (TUI programs like
+		// less/htop work) and child output to stdout, until the child's
+		// next prompt is detected via exact match against canonicalPrompt.
+		next := po.PassthroughUntilPrompt(ptmx, canonicalPrompt)
+		if next == "" {
 			return 0
 		}
 	}
