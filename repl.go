@@ -70,7 +70,6 @@ func (r *repl) bubblineReadEvalPrintLoop() int {
 				return 0
 			}
 			if errors.Is(err, bubbline.ErrInterrupted) {
-				fmt.Println("^C")
 				lastExitCode = 1
 				continue
 			}
