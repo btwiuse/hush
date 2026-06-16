@@ -90,6 +90,7 @@ func init() {
 		"mkdir":  coreUtilBuiltin("mkdir"),
 		"mv":     coreUtilBuiltin("mv"),
 		"rm":     coreUtilBuiltin("rm"),
+		"reset":  reset,
 		"rmdir":  rmdir,
 		"touch":  coreUtilBuiltin("touch"),
 		"which":  which,
@@ -225,6 +226,11 @@ func curl(term *Console, args ...string) error {
 
 func clear(term *Console, args ...string) error {
 	clearWriter(term.Stdout)
+	return nil
+}
+
+func reset(term *Console, args ...string) error {
+	fmt.Fprint(term.Stdout, "\033c")
 	return nil
 }
 
