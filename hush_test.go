@@ -331,3 +331,44 @@ func TestRun(t *testing.T) {
 		})
 	}
 }
+
+func TestSourceRCFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("sources rcfile and sets env", func(t *testing.T) {
+		t.Parallel()
+		term := &Console{
+			Stdin:  &bytes.Buffer{},
+			Stdout: &bytes.Buffer{},
+			Stderr: &bytes.Buffer{},
+		}
+		runner := testRunner(term)
+
+		dir := t.TempDir()
+		rcfile := dir + "/.profile"
+		if err := os.WriteFile(rcfile, []byte("export HUSH_RC_TEST=fromrc\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		sourceRCFile(runner, rcfile, &bytes.Buffer{})
+
+		if err := runLine(runner, "echo $HUSH_RC_TEST"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("missing rcfile is silent", func(t *testing.T) {
+		t.Parallel()
+		term := &Console{
+			Stdin:  &bytes.Buffer{},
+			Stdout: &bytes.Buffer{},
+			Stderr: &bytes.Buffer{},
+		}
+		runner := testRunner(term)
+		var stderr bytes.Buffer
+		sourceRCFile(runner, "/nonexistent/.profile", &stderr)
+		if stderr.Len() != 0 {
+			t.Errorf("expected no stderr for missing rcfile, got: %s", stderr.String())
+		}
+	})
+}

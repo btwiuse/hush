@@ -48,6 +48,7 @@ func autoerr(err error) int {
 func run(in io.Reader, out, outErr io.Writer, args []string) int {
 	set := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	command := set.String("c", "", "Read and execute commands from the given string value.")
+	rcfile := set.String("rcfile", "", "Source RC file on startup (default ~/.profile)")
 	err := set.Parse(args[1:])
 	if err != nil {
 		fmt.Fprintln(outErr, err)
@@ -106,6 +107,32 @@ func run(in io.Reader, out, outErr io.Writer, args []string) int {
 	}
 
 	// REPL mode
+	sourceRCFile(runner, *rcfile, outErr)
 	r := newRepl(&Console{Stdin: in, Stdout: out, Stderr: outErr}, runner)
 	return r.bubblineReadEvalPrintLoop()
+}
+
+func sourceRCFile(runner *interp.Runner, rcfile string, stderr io.Writer) {
+	if rcfile == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return
+		}
+		rcfile = filepath.Join(home, ".profile")
+	}
+	f, err := os.Open(rcfile)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	parser := syntax.NewParser()
+	prog, err := parser.Parse(f, rcfile)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return
+	}
+	runner.Reset()
+	if err := runner.Run(context.Background(), prog); err != nil {
+		fmt.Fprintln(stderr, err)
+	}
 }

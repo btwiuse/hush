@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/btwiuse/hush"
@@ -17,9 +18,14 @@ import (
 
 func main() {
 	command := flag.String("c", "", "command to be executed")
+	rcfile := flag.String("rcfile", "", "Source RC file on startup (default ~/.profile)")
 	flag.Parse()
 
 	runner := hush.NewRunner(&hush.Console{Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr})
+
+	if *command == "" && flag.NArg() == 0 && term.IsTerminal(int(os.Stdin.Fd())) {
+		sourceRCFile(runner, *rcfile)
+	}
 
 	err := runAll(runner, *command)
 	var es interp.ExitStatus
@@ -111,4 +117,29 @@ func runPipe(runner *interp.Runner, stdin io.Reader) error {
 		}
 	}
 	return nil
+}
+
+func sourceRCFile(runner *interp.Runner, rcfile string) {
+	if rcfile == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return
+		}
+		rcfile = filepath.Join(home, ".profile")
+	}
+	f, err := os.Open(rcfile)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	parser := syntax.NewParser()
+	prog, err := parser.Parse(f, rcfile)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	runner.Reset()
+	if err := runner.Run(context.Background(), prog); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 }
