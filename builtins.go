@@ -26,7 +26,6 @@ import (
 	"github.com/btwiuse/u-root/pkg/core/mv"
 	"github.com/btwiuse/u-root/pkg/core/rm"
 	"github.com/btwiuse/u-root/pkg/core/shasum"
-	"github.com/btwiuse/u-root/pkg/core/tar"
 	"github.com/btwiuse/u-root/pkg/core/touch"
 	"github.com/btwiuse/u-root/pkg/core/xargs"
 	"github.com/pkg/errors"
@@ -55,7 +54,6 @@ var commandBuilders = map[string]func() core.Command{
 	"gunzip": func() core.Command { return gzip.New("gunzip") },
 	"mktemp": func() core.Command { return mktemp.New() },
 	"shasum": func() core.Command { return shasum.New() },
-	"tar":    func() core.Command { return tar.New() },
 }
 
 func coreUtilBuiltin(name string) builtinFunc {
@@ -100,7 +98,6 @@ func init() {
 		"gunzip": coreUtilBuiltin("gunzip"),
 		"mktemp": coreUtilBuiltin("mktemp"),
 		"shasum": coreUtilBuiltin("shasum"),
-		"tar":    coreUtilBuiltin("tar"),
 	} {
 		builtins[k] = v
 	}
