@@ -18,9 +18,9 @@
       <wanix-bind dst="term" src="#term"></wanix-bind>
       <wanix-bind dst="web" src="#web"></wanix-bind>
       <wanix-bind dst="js" src="#js"></wanix-bind>
-      <wanix-bind dst="crush" src="#web/opfs"></wanix-bind>
+      <wanix-bind dst="home" src="#web/opfs" mode="0755"></wanix-bind>
       <wanix-bind dst="tmp" src="#ramfs"></wanix-bind>
-      <wanix-bind type="archive" dst="go" src="https://no-cors.up.railway.app/https://github.com/justwasm/go/releases/download/go1.27.0-go4js.1/go1.27.0-go4js.1.js-wasm.src.min.tar.gz"></wanix-bind>
+      <wanix-bind type="archive" dst="." src="https://no-cors.up.railway.app/https://github.com/justwasm/go/releases/download/go1.27.0-go4js.1/go1.27.0-go4js.1.js-wasm.src.min.tar.gz"></wanix-bind>
 
       <!-- fetch hush wasm into the namespace -->
       <wanix-bind
@@ -35,7 +35,7 @@
         id="repl"
         cmd="hush"
         type="gojs"
-        env="TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1 WANIX=/crush/wanix/ HOME=/crush/home PATH=/crush/wanix CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 CRUSH_DISABLE_PROVIDER_AUTO_UPDATE=1 TERM_WINCH=/winch"
+        env="TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1 WANIX=/home/wanix HOME=/home PATH=/home/wanix/go/bin:/home/wanix CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 CRUSH_DISABLE_PROVIDER_AUTO_UPDATE=1 TERM_WINCH=/winch GOROOT=/go GOPATH=/home/gopath GOTOOLDIR=/home/wanix/go/pkg/tool/js_wasm"
         term
         start
       >
