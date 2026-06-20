@@ -36,14 +36,8 @@
       ></wanix-bind>
       <wanix-bind
         type="fetch"
-        dst="crush.wasm"
-        src="https://w9y.up.railway.app/go/github.com/justwasm/crush@v0.72.0"
-        mode="0755"
-      ></wanix-bind>
-      <wanix-bind
-        type="fetch"
         dst="w9y"
-        src="https://w9y.up.railway.app/go/github.com/btwiuse/w9y/cmd/w9y@dc21bc5d2731bb33374530eb9da733400ed01841"
+        src="https://w9y.up.railway.app/go/github.com/btwiuse/w9y/cmd/w9y@latest"
         mode="0755"
       ></wanix-bind>
       <wanix-bind
@@ -192,7 +186,7 @@
         id="repl"
         cmd="hush"
         type="gojs"
-        env="TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1 WANIX=1 HOME=/crush PATH=/ CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 TERM_WINCH=/winch"
+        env="TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1 WANIX=/crush/wanix/ HOME=/crush PATH=/crush/wanix CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 TERM_WINCH=/winch"
         term
         start
       >
