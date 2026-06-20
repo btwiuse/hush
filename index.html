@@ -30,6 +30,13 @@
         mode="0755"
       ></wanix-bind>
 
+      <wanix-bind
+        type="fetch"
+        dst="w9y"
+        src="https://w9y.up.railway.app/go/github.com/btwiuse/w9y/cmd/w9y@latest"
+        mode="0755"
+      ></wanix-bind>
+
       <!-- run bubbletea as gojs task with TERM_WINCH pointing to term's winch file -->
       <wanix-task
         id="repl"
