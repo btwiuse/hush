@@ -123,7 +123,6 @@ function showHome() {
   }
   activeTabId = homeTabId;
   homeContent.classList.remove('hidden');
-  system.style.display = 'none';
   tabs.get(homeTabId).tabEl.classList.add('active');
   if (deck) deck.sync();
 }
@@ -131,7 +130,6 @@ function showHome() {
 function hideHome() {
   if (activeTabId !== homeTabId) return;
   homeContent.classList.add('hidden');
-  system.style.display = '';
   tabs.get(homeTabId).tabEl.classList.remove('active');
   activeTabId = null;
 }
