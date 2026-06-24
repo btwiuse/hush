@@ -8,14 +8,46 @@
       type="module"
       src="https://justwasm.github.io/wanix/dist/wanix.min.js"
     ></script>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      body { margin: 0; height: 100vh; display: flex; flex-direction: column; background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+      #tab-bar { display: flex; align-items: center; background: #161b22; border-bottom: 1px solid #30363d; min-height: 36px; flex-shrink: 0; overflow-x: auto; }
+      #tab-bar::-webkit-scrollbar { height: 2px; }
+      #tab-bar::-webkit-scrollbar-thumb { background: #30363d; border-radius: 1px; }
+      .tab { display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; color: #8b949e; cursor: pointer; border-right: 1px solid #21262d; white-space: nowrap; user-select: none; min-width: 0; }
+      .tab:hover { background: #1c2128; }
+      .tab.active { background: #0d1117; color: #c9d1d9; border-bottom: 2px solid #58a6ff; }
+      .tab .close { display: none; font-size: 12px; line-height: 1; padding: 1px 4px; border-radius: 3px; color: #8b949e; }
+      .tab:hover .close { display: inline; }
+      .tab .close:hover { background: #30363d; color: #f85149; }
+      .tab .close.disabled { display: none !important; }
+      #new-tab-btn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; font-size: 18px; color: #8b949e; cursor: pointer; border: none; background: transparent; flex-shrink: 0; }
+      #new-tab-btn:hover { color: #c9d1d9; background: #1c2128; }
+      #home-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+      #home-content.hidden { display: none; }
+      wanix-system { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+      wanix-system:not(:defined) { display: none; }
+      .term-wrapper { flex: 1; display: flex; min-height: 0; }
+      .term-wrapper.hidden { display: none; }
+      wanix-term { flex: 1; }
+    </style>
   </head>
-  <body style="height: 100vh; margin: 0">
-    <!-- a wanix system is an empty root task/namespace -->
+  <body>
+    <div id="tab-bar">
+      <div id="tabs-container" style="display:flex;flex:1;min-width:0"></div>
+      <button id="new-tab-btn" title="New tab">+</button>
+    </div>
+
+    <div id="home-content">
+      <img src="logo-96.png" width="64" height="64" style="border-radius:14px" alt="">
+      <h1 style="margin:0;font-size:28px;font-weight:600;color:#c9d1d9">Gear Shell</h1>
+      <p style="margin:0;font-size:14px;color:#8b949e">WebAssembly-powered shell in your browser</p>
+    </div>
+
     <wanix-system
       wasm="https://w9y.up.railway.app/go/github.com/justwasm/wanix/wasm@v0.3.12"
       debug
     >
-      <!-- bind the task, term, and web namespaces to the system -->
       <wanix-bind dst="task" src="#task"></wanix-bind>
       <wanix-bind dst="term" src="#term"></wanix-bind>
       <wanix-bind dst="web" src="#web"></wanix-bind>
@@ -24,7 +56,6 @@
       <wanix-bind dst="tmp" src="#ramfs"></wanix-bind>
       <wanix-bind type="archive" dst="." src="https://no-cors.up.railway.app/https://github.com/justwasm/go/releases/download/go1.27.0-go4js.1/go1.27.0-go4js.1.js-wasm.src.min.tar.gz"></wanix-bind>
 
-      <!-- fetch hush wasm into the namespace -->
       <wanix-bind
         type="fetch"
         dst="hush"
@@ -38,21 +69,189 @@
         src="https://w9y.up.railway.app/go/github.com/btwiuse/w9y/cmd/w9y@latest"
         mode="0755"
       ></wanix-bind>
-
-      <!-- run bubbletea as gojs task with TERM_WINCH pointing to term's winch file -->
-      <wanix-task
-        id="repl"
-        cmd="hush"
-        type="gojs"
-        env="TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1 WANIX=/opfs/wanix HOME=/opfs/home PATH=/opfs/wanix/go/bin:/opfs/wanix CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 CRUSH_DISABLE_PROVIDER_AUTO_UPDATE=1 TERM_WINCH=/winch GOROOT=/go GOPATH=/opfs/gopath GOTOOLDIR=/opfs/wanix/go/pkg/tool/js_wasm"
-        term
-        start
-      >
-        <wanix-bind dst="winch" src="#task/self/term/winch"></wanix-bind>
-      </wanix-task>
-
-      <!-- render the terminal for the repl -->
-      <wanix-term raw no-scrollbar path="#task/repl/term"></wanix-term>
     </wanix-system>
+
+    <script>
+      const HUSH_ENV = "TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1 WANIX=/opfs/wanix HOME=/opfs/home PATH=/opfs/wanix/go/bin:/opfs/wanix CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 CRUSH_DISABLE_PROVIDER_AUTO_UPDATE=1 TERM_WINCH=/winch GOROOT=/go GOPATH=/opfs/gopath GOTOOLDIR=/opfs/wanix/go/pkg/tool/js_wasm";
+
+      let tabIdCounter = 0;
+      let activeTabId = null;
+      let homeTabId = 0;
+      let systemReady = false;
+      const tabs = new Map();
+
+      const system = document.querySelector('wanix-system');
+      const tabsContainer = document.getElementById('tabs-container');
+      const newTabBtn = document.getElementById('new-tab-btn');
+      const homeContent = document.getElementById('home-content');
+
+      // --- Home tab (tab-0): always present, no terminal, not closable ---
+      {
+        const tabEl = document.createElement('div');
+        tabEl.className = 'tab';
+        tabEl.dataset.tabId = 'home';
+
+        const icon = document.createElement('img');
+        icon.style.width = '28px';
+        icon.style.height = '28px';
+        icon.style.borderRadius = '4px';
+        icon.style.display = 'block';
+        icon.src = 'logo-home.png';
+        icon.alt = '';
+        icon.draggable = false;
+        tabEl.appendChild(icon);
+        tabEl.style.cssText = 'padding:0;width:36px;height:36px;display:flex;align-items:center;justify-content:center';
+
+        tabEl.addEventListener('click', () => showHome());
+        tabsContainer.appendChild(tabEl);
+
+        tabs.set(homeTabId, { tabEl, isHome: true });
+      }
+
+      system.addEventListener('ready', () => {
+        systemReady = true;
+      });
+
+      function showHome() {
+        if (activeTabId !== null && tabs.has(activeTabId)) {
+          const prev = tabs.get(activeTabId);
+          if (prev.wrapperEl) prev.wrapperEl.classList.add('hidden');
+          prev.tabEl.classList.remove('active');
+        }
+        activeTabId = homeTabId;
+        homeContent.classList.remove('hidden');
+        system.style.display = 'none';
+        tabs.get(homeTabId).tabEl.classList.add('active');
+      }
+
+      function hideHome() {
+        if (activeTabId !== homeTabId) return;
+        homeContent.classList.add('hidden');
+        system.style.display = '';
+        tabs.get(homeTabId).tabEl.classList.remove('active');
+        activeTabId = null;
+      }
+
+      function wake(el) {
+        if (el._awake) queueMicrotask(() => el._awake());
+      }
+
+      function createTab({ activate = true } = {}) {
+        hideHome();
+
+        const id = ++tabIdCounter;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'term-wrapper';
+
+        const task = document.createElement('wanix-task');
+        task.id = `repl-${id}`;
+        task.setAttribute('cmd', 'hush');
+        task.setAttribute('type', 'gojs');
+        task.setAttribute('env', HUSH_ENV);
+        task.setAttribute('term', '');
+        task.setAttribute('start', '');
+
+        const winchBind = document.createElement('wanix-bind');
+        winchBind.setAttribute('dst', 'winch');
+        winchBind.setAttribute('src', '#task/self/term/winch');
+        task.appendChild(winchBind);
+
+        const term = document.createElement('wanix-term');
+        term.setAttribute('raw', '');
+        term.setAttribute('no-scrollbar', '');
+        term.setAttribute('path', `#task/repl-${id}/term`);
+
+        wrapper.appendChild(task);
+        wrapper.appendChild(term);
+        system.appendChild(wrapper);
+
+        if (systemReady) {
+          wake(task);
+          wake(term);
+        }
+
+        const tabEl = document.createElement('div');
+        tabEl.className = 'tab';
+        tabEl.dataset.tabId = id;
+
+        const label = document.createElement('span');
+        label.textContent = `Term ${id}`;
+        tabEl.appendChild(label);
+
+        const closeBtn = document.createElement('span');
+        closeBtn.className = 'close';
+        closeBtn.textContent = '✕';
+        closeBtn.title = 'Close tab';
+        closeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeTab(id);
+        });
+        tabEl.appendChild(closeBtn);
+
+        tabEl.addEventListener('click', () => activateTab(id));
+        tabsContainer.appendChild(tabEl);
+
+        tabs.set(id, { taskEl: task, termEl: term, wrapperEl: wrapper, tabEl, isHome: false });
+
+        if (activate) {
+          activateTab(id);
+        } else {
+          wrapper.classList.add('hidden');
+        }
+
+        return id;
+      }
+
+      function activateTab(id) {
+        if (activeTabId === id) return;
+        hideHome();
+        if (activeTabId !== null && activeTabId !== homeTabId && tabs.has(activeTabId)) {
+          const prev = tabs.get(activeTabId);
+          if (prev.wrapperEl) prev.wrapperEl.classList.add('hidden');
+          prev.tabEl.classList.remove('active');
+        }
+        const entry = tabs.get(id);
+        if (!entry) return;
+        if (entry.wrapperEl) entry.wrapperEl.classList.remove('hidden');
+        entry.tabEl.classList.add('active');
+        activeTabId = id;
+        if (entry.termEl && entry.termEl._term && entry.termEl._fitAddon) {
+          setTimeout(() => {
+            entry.termEl._fitAddon.fit();
+            entry.termEl._term.focus();
+          }, 0);
+        }
+      }
+
+      function closeTab(id) {
+        if (id === homeTabId) return;
+        if (tabs.size <= 1) return;
+        const entry = tabs.get(id);
+        if (!entry) return;
+        const wasActive = activeTabId === id;
+        entry.wrapperEl.remove();
+        entry.tabEl.remove();
+        tabs.delete(id);
+        if (wasActive) {
+          if (tabs.size > 0) {
+            const keys = [...tabs.keys()];
+            const lastKey = keys[keys.length - 1];
+            if (lastKey === homeTabId) {
+              showHome();
+            } else {
+              activateTab(lastKey);
+            }
+          } else {
+            showHome();
+          }
+        }
+      }
+
+      newTabBtn.addEventListener('click', () => createTab({ activate: true }));
+
+      // Start on Home
+      showHome();
+    </script>
   </body>
 </html>
