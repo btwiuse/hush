@@ -11,7 +11,7 @@ require (
 	github.com/btwiuse/u-root v0.17.0
 	github.com/creack/pty v1.1.24
 	github.com/fatih/color v1.19.0
-	github.com/justwasm/bubbline v0.0.9
+	github.com/justwasm/bubbline v0.0.10
 	github.com/pkg/errors v0.9.1
 	golang.org/x/term v0.41.0
 )
