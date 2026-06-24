@@ -1,0 +1,21 @@
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; overflow: hidden; overscroll-behavior: none; }
+#tab-bar { display: flex; align-items: center; background: #161b22; border-bottom: 1px solid #30363d; min-height: 36px; flex-shrink: 0; overflow-x: auto; }
+#tab-bar::-webkit-scrollbar { height: 2px; }
+#tab-bar::-webkit-scrollbar-thumb { background: #30363d; border-radius: 1px; }
+.tab { display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 13px; color: #8b949e; cursor: pointer; border-right: 1px solid #21262d; white-space: nowrap; user-select: none; min-width: 0; }
+.tab:hover { background: #1c2128; }
+.tab.active { background: #0d1117; color: #c9d1d9; border-bottom: 2px solid #58a6ff; }
+.tab .close { display: none; font-size: 12px; line-height: 1; padding: 1px 4px; border-radius: 3px; color: #8b949e; }
+.tab:hover .close { display: inline; }
+.tab:hover .close:hover { background: #30363d; color: #f85149; }
+.tab .close.disabled { display: none !important; }
+#new-tab-btn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; font-size: 18px; color: #8b949e; cursor: pointer; border: none; background: transparent; flex-shrink: 0; }
+#new-tab-btn:hover { color: #c9d1d9; background: #1c2128; }
+#home-content { flex: 1; overflow: hidden; }
+#home-content.hidden { display: none; }
+wanix-system { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+wanix-system:not(:defined) { display: none; }
+.term-wrapper { flex: 1; display: flex; min-height: 0; min-width: 0; overflow: hidden; }
+.term-wrapper.hidden { display: none; }
+wanix-term { flex: 1; min-width: 0; }

@@ -1,0 +1,36 @@
+#home-content .reveal { height: 100%; }
+#home-content .reveal .slides { text-align: left; }
+#home-content .reveal .slides section { padding: 20px 32px; }
+#home-content .reveal h1 { font-size: 2em; font-weight: 600; color: #c9d1d9; }
+#home-content .reveal h2 { font-size: 1.2em; font-weight: 500; color: #58a6ff; margin-bottom: 0.2em; }
+#home-content .reveal p { font-size: 0.6em; color: #8b949e; line-height: 1.5; }
+#home-content .reveal .zen { font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace; font-size: 0.5em; color: #8b949e; line-height: 1.8; letter-spacing: 0.02em; }
+#home-content .reveal ul { font-size: 0.55em; color: #8b949e; list-style: none; padding: 0; }
+#home-content .reveal ul li { padding: 3px 0; }
+#home-content .reveal ul li::before { content: "\2192 "; color: #58a6ff; }
+#home-content .reveal .controls { color: #8b949e; }
+#home-content .reveal .progress { color: #58a6ff; height: 3px; }
+#home-content .reveal .config-form { width: 100%; max-width: 90%; text-align: left; }
+#home-content .reveal .config-scroll { overflow-y: auto; max-height: calc(100vh - 140px); padding-right: 8px; }
+#home-content .reveal .config-scroll::-webkit-scrollbar { width: 4px; }
+#home-content .reveal .config-scroll::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+#home-content .reveal .config-form label { display: block; font-size: 0.45em; color: #8b949e; margin-bottom: 2px; margin-top: 8px; }
+#home-content .reveal .config-form label:first-child { margin-top: 0; }
+#home-content .reveal .config-form input,
+#home-content .reveal .config-form textarea { width: 100%; background: #161b22; border: 1px solid #30363d; color: #c9d1d9; font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace; font-size: 0.45em; padding: 5px 8px; border-radius: 4px; outline: none; }
+#home-content .reveal .config-form input:focus,
+#home-content .reveal .config-form textarea:focus { border-color: #58a6ff; }
+#home-content .reveal .config-form textarea { height: 240px; line-height: 1.4; box-sizing: border-box; }
+#home-content .reveal .config-form details { border: 1px solid #30363d; border-radius: 4px; margin-top: 6px; }
+#home-content .reveal .config-form details summary { display: flex; align-items: center; padding: 6px 10px; cursor: pointer; background: #161b22; border-radius: 4px; user-select: none; list-style: none; }
+#home-content .reveal .config-form details summary::-webkit-details-marker { display: none; }
+#home-content .reveal .config-form details summary::after { content: "\25B8"; color: #8b949e; margin-left: auto; transition: transform 0.15s; font-size: 0.7em; }
+#home-content .reveal .config-form details[open] summary::after { transform: rotate(90deg); }
+#home-content .reveal .config-form details summary span { font-size: 0.45em; color: #c9d1d9; }
+#home-content .reveal .config-form details .body { padding: 8px 10px; text-align: left; }
+#home-content .reveal .config-form .hint { font-size: 0.38em; color: #484f58; margin-top: 1px; }
+#home-content .reveal .config-form .actions { margin-top: 10px; display: flex; gap: 8px; }
+#home-content .reveal .config-form button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 5px 14px; border-radius: 4px; font-size: 0.45em; cursor: pointer; }
+#home-content .reveal .config-form button:hover { background: #30363d; }
+#home-content .reveal .config-form button.primary { background: #238636; border-color: #2ea043; color: #fff; }
+#home-content .reveal .config-form button.primary:hover { background: #2ea043; }

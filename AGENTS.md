@@ -58,11 +58,9 @@ Wasm mode requires a [forked Go compiler](https://github.com/btwiuse/go) with No
 
 ## Supported Shell Features
 
-**Yes**: `&&`, `||`, `|`, `|&`, `time`, `~` tilde expansion, `$VAR` param expansion, redirects (`>`, `>>`, `&>`, `&>>`, `<`, `<<`, `<<-`, `<<<`), background (`&`), heredocs.
+**Yes**: `&&`, `||`, `|`, `|&`, `time`, `~` tilde expansion, `$VAR` param expansion, redirects (`>`, `>>`, `&>`, `&>>`, `<`, `<<`, `<<-`, `<<<`), background (`&`), heredocs, `for`, `while`, `case`, backtick cmd substitution.
 
-**Explicitly unimplemented** (returns error): `if`, `while`, `for`, `case`, `{block}`, `(subshell)`, `func()`, arithmetic commands, test clauses, declare/let/coproc.
-
-**Not supported** (returns error): multi-line commands, dollar-prefixed quotes, `$()` cmd subst, arithmetic expansion, proc subst, extglob, slicing/replacement in param expansion.
+**Not supported**: `{block}`, `(subshell)`, `func()`, arithmetic commands, test clauses, declare/let/coproc, `$()` cmd subst, arithmetic expansion, proc subst, extglob, slicing/replacement in param expansion.
 
 ## Naming & Style
 
