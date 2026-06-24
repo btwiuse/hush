@@ -1,4 +1,19 @@
-const HUSH_ENV = "TERM=xterm-256color COLORTERM=truecolor CLICOLOR_FORCE=1 WANIX=/opfs/wanix HOME=/opfs/home PATH=/opfs/wanix/go/bin:/opfs/wanix CRUSH_CORE_UTILS=1 DO_NOT_TRACK=1 CRUSH_DISABLE_PROVIDER_AUTO_UPDATE=1 TERM_WINCH=/winch GOROOT=/go GOPATH=/opfs/gopath GOTOOLDIR=/opfs/wanix/go/pkg/tool/js_wasm";
+const HUSH_ENV = {
+  TERM: 'xterm-256color',
+  COLORTERM: 'truecolor',
+  CLICOLOR_FORCE: '1',
+  WANIX: '/opfs/wanix',
+  HOME: '/opfs/home',
+  PATH: '/opfs/wanix/go/bin:/opfs/wanix',
+  CRUSH_CORE_UTILS: '1',
+  DO_NOT_TRACK: '1',
+  CRUSH_DISABLE_PROVIDER_AUTO_UPDATE: '1',
+  TERM_WINCH: '/winch',
+  GOROOT: '/go',
+  GOPATH: '/opfs/gopath',
+  GOTOOLDIR: '/opfs/wanix/go/pkg/tool/js_wasm',
+  LOCATION: window.location.pathname,
+};
 
 let tabIdCounter = 0;
 let activeTabId = null;
@@ -76,16 +91,19 @@ populateConfigForm();
 
 function buildEnv() {
   const cfg = loadConfig();
-  let env = HUSH_ENV;
+  const env = { ...HUSH_ENV };
   if (cfg.env.trim()) {
     for (const line of cfg.env.split('\n')) {
       const trimmed = line.trim();
-      if (trimmed && !env.includes(trimmed.split('=')[0] + '=')) {
-        env += ' ' + trimmed;
+      if (trimmed) {
+        const [key, ...rest] = trimmed.split('=');
+        if (key) {
+          env[key] = rest.join('=');
+        }
       }
     }
   }
-  return env;
+  return Object.entries(env).map(([k, v]) => `${k}=${v}`).join(' ');
 }
 
 // --- Home tab (tab-0): always present, no terminal, not closable ---
