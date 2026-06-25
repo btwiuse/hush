@@ -19,3 +19,6 @@ wanix-system:not(:defined) { display: none; }
 .term-wrapper { flex: 1; display: flex; min-height: 0; min-width: 0; overflow: hidden; }
 .term-wrapper.hidden { visibility: hidden; position: absolute; pointer-events: none; }
 wanix-term { flex: 1; min-width: 0; }
+
+.cfg-toggle { display: block; font-size: 0.45em; color: #c9d1d9; cursor: pointer; }
+.cfg-toggle input[type="checkbox"] { width: auto !important; height: auto !important; accent-color: #58a6ff; cursor: pointer; vertical-align: middle; margin-right: 6px; }

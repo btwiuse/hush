@@ -49,7 +49,7 @@ window.addEventListener('DOMContentLoaded', initReveal);
 
 // --- Config (localStorage) ---
 const CONFIG_KEY = 'gear-shell-config';
-const DEFAULT_CONFIG = { cmd: 'hush', env: '' };
+const DEFAULT_CONFIG = { cmd: 'hush', env: '', autoOpen: false };
 
       function loadConfig() {
         try {
@@ -65,12 +65,14 @@ function saveConfig(cfg) {
         const cfg = loadConfig();
         document.getElementById('cfg-cmd').value = cfg.cmd;
         document.getElementById('cfg-env').value = cfg.env;
+        document.getElementById('cfg-auto-open').checked = !!cfg.autoOpen;
       }
 
       document.getElementById('cfg-save').addEventListener('click', () => {
         saveConfig({
           cmd: document.getElementById('cfg-cmd').value.trim() || 'hush',
           env: document.getElementById('cfg-env').value,
+          autoOpen: document.getElementById('cfg-auto-open').checked,
         });
   const s = document.getElementById('cfg-status');
   s.textContent = 'Saved!';
@@ -273,3 +275,11 @@ newTabBtn.addEventListener('click', () => createTab({ activate: true }));
 
 // Start on Home
 showHome();
+
+// Auto-open terminal on page load if enabled
+system.addEventListener('ready', () => {
+  const cfg = loadConfig();
+  if (cfg.autoOpen) {
+    createTab({ activate: true });
+  }
+});
