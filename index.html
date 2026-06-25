@@ -129,6 +129,19 @@
       <wanix-bind dst="tmp" src="#ramfs"></wanix-bind>
       <wanix-bind type="fetch" dst="hush" src="https://w9y.up.railway.app/go/github.com/btwiuse/hush/cmd/hush@v0.4.19" mode="0755"></wanix-bind>
       <wanix-bind type="fetch" dst="w9y" src="https://w9y.up.railway.app/go/github.com/btwiuse/w9y/cmd/w9y@v0.0.1" mode="0755"></wanix-bind>
+      <wanix-bind dst="tmp/profile" type="file" mode="0666">
+	path="$LOCATION"
+	OLDIFS=$IFS
+	IFS='/'
+
+	set -- $path
+
+	IFS=$OLDIFS
+
+	for x; do
+	  w9y mod apply -v "$x"
+	done
+      </wanix-bind>
     </wanix-system>
 
     <script src="reveal-init.js"></script>
