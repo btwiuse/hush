@@ -149,7 +149,9 @@
 	IFS=$OLDIFS
 
 	for x; do
+          [[ -d $HOME/.w9y/$x ]] && continue
 	  w9y mod apply -v "$x"
+          mkdir -p $HOME/.w9y/$x
 	done
       </wanix-bind>
     </wanix-system>
