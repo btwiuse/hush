@@ -4,14 +4,13 @@ const HUSH_ENV = {
   CLICOLOR_FORCE: '1',
   WANIX: '/opfs/wanix',
   HOME: '/opfs/home',
-  PATH: '/opfs/wanix/go/bin:/opfs/wanix',
+  PATH: '/opfs/home/go/bin:/opfs/wanix:/opfs/home/sdk/go1.27.0-go4js.1',
+  GOPROXY: 'https://goproxy.up.railway.app',
+  GONOSUMDB: '*',
   CRUSH_CORE_UTILS: '1',
   DO_NOT_TRACK: '1',
   CRUSH_DISABLE_PROVIDER_AUTO_UPDATE: '1',
   TERM_WINCH: '/winch',
-  GOROOT: '/go',
-  GOPATH: '/opfs/gopath',
-  GOTOOLDIR: '/opfs/wanix/go/pkg/tool/js_wasm',
   LOCATION: window.location.pathname,
 };
 
