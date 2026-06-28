@@ -142,6 +142,8 @@ func curl(term *Console, args ...string) error {
 	head := set.Bool("I", false, "Fetch headers only")
 	follow := set.Bool("L", false, "Follow redirects")
 	output := set.Bool("O", false, "Save to remote-named file")
+	silent := set.Bool("s", false, "Silent mode")
+	outputName := set.String("o", "", "Write to specific file instead of stdout")
 	if err := set.Parse(args); err != nil {
 		return err
 	}
@@ -179,24 +181,31 @@ func curl(term *Console, args ...string) error {
 			return errors.Wrap(err, rawURL)
 		}
 
-		fmt.Fprintf(term.Stdout, "HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
-		resp.Header.Write(term.Stdout)
-		fmt.Fprintln(term.Stdout)
+		if !*silent {
+			fmt.Fprintf(term.Stderr, "HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
+			resp.Header.Write(term.Stderr)
+			fmt.Fprintln(term.Stderr)
+		}
 
 		if *head {
 			resp.Body.Close()
 			continue
 		}
 
-		if *output {
-			u, err := url.Parse(rawURL)
-			if err != nil {
-				resp.Body.Close()
-				return errors.Wrap(err, rawURL)
-			}
-			filename := filepath.Base(u.Path)
-			if filename == "/" || filename == "." || filename == "" {
-				filename = "index.html"
+		if *output || *outputName != "" {
+			var filename string
+			if *outputName != "" {
+				filename = *outputName
+			} else {
+				u, err := url.Parse(rawURL)
+				if err != nil {
+					resp.Body.Close()
+					return errors.Wrap(err, rawURL)
+				}
+				filename = filepath.Base(u.Path)
+				if filename == "/" || filename == "." || filename == "" {
+					filename = "index.html"
+				}
 			}
 			f, err := os.Create(filename)
 			if err != nil {

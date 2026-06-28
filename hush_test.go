@@ -207,15 +207,16 @@ func TestCurl(t *testing.T) {
 		defer ts.Close()
 
 		var out bytes.Buffer
+		var errBuf bytes.Buffer
 		term := &Console{
 			Stdout: &out,
-			Stderr: &bytes.Buffer{},
+			Stderr: &errBuf,
 		}
 		if err := curl(term, "-I", ts.URL); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !strings.Contains(out.String(), "200 OK") {
-			t.Errorf("expected 200 OK in output, got: %s", out.String())
+		if !strings.Contains(errBuf.String(), "200 OK") {
+			t.Errorf("expected 200 OK in stderr, got: %s", errBuf.String())
 		}
 	})
 
@@ -251,6 +252,35 @@ func TestCurl(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		data, err := os.ReadFile(dir + "/testfile.txt")
+		if err != nil {
+			t.Fatalf("failed to read saved file: %v", err)
+		}
+		if string(data) != "hello world" {
+			t.Errorf("expected 'hello world', got %q", string(data))
+		}
+	})
+
+	t.Run("curl -o saves to named file", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte("hello world"))
+		}))
+		defer ts.Close()
+
+		dir := t.TempDir()
+		oldWd, _ := os.Getwd()
+		os.Chdir(dir)
+		defer os.Chdir(oldWd)
+
+		var out bytes.Buffer
+		term := &Console{
+			Stdout: &out,
+			Stderr: &bytes.Buffer{},
+		}
+		if err := curl(term, "-o", "myfile.txt", ts.URL); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, err := os.ReadFile(dir + "/myfile.txt")
 		if err != nil {
 			t.Fatalf("failed to read saved file: %v", err)
 		}
