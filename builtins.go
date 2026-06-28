@@ -96,6 +96,7 @@ func init() {
 		"base64": coreUtilBuiltin("base64"),
 		"gzip":   coreUtilBuiltin("gzip"),
 		"gunzip": coreUtilBuiltin("gunzip"),
+		"jq":     jq,
 		"mktemp": coreUtilBuiltin("mktemp"),
 		"shasum": coreUtilBuiltin("shasum"),
 	} {
