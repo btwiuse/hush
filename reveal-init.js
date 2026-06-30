@@ -1,10 +1,13 @@
+const WANIX = '/opfs/wanix';
+const HOME = '/opfs/home';
+
 const HUSH_ENV = {
   TERM: 'xterm-256color',
   COLORTERM: 'truecolor',
   CLICOLOR_FORCE: '1',
-  WANIX: '/opfs/wanix',
-  HOME: '/opfs/home',
-  PATH: '/opfs/home/go/bin:/opfs/wanix:/opfs/home/sdk/go1.27.0-go4js.1',
+  WANIX,
+  HOME,
+  PATH: `${HOME}/go/bin:${WANIX}`,
   GOPROXY: 'https://goproxy.up.railway.app',
   GONOSUMDB: '*',
   CRUSH_CORE_UTILS: '1',
@@ -12,6 +15,8 @@ const HUSH_ENV = {
   CRUSH_DISABLE_PROVIDER_AUTO_UPDATE: '1',
   TERM_WINCH: '/winch',
   LOCATION: window.location.pathname,
+  GOMEMLIMIT: '384MiB',
+  GOGC: '70',
 };
 
 let tabIdCounter = 0;
